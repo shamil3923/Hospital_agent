@@ -1,0 +1,49 @@
+# Core Framework
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+
+# Agent Framework
+langgraph
+langchain
+langchain-community
+langchain-core
+langchain-google-genai
+
+# MCP (Model Context Protocol)
+mcp
+websockets
+jsonrpc-base
+pydantic-core
+
+# Database
+sqlalchemy
+alembic
+
+# Vector Store & RAG
+chromadb
+sentence-transformers
+
+# Redis for messaging
+redis
+
+# Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+
+# HTTP Client
+httpx
+aiohttp
+
+# Data Processing
+pandas
+numpy
+
+# Environment
+python-dotenv
+
+# Development
+pytest
+pytest-asyncio

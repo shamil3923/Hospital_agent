@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+@layer components {
+  .metric-card {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow;
+  }
+  
+  .status-indicator {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .status-normal {
+    @apply bg-green-100 text-green-800;
+  }
+
+  .status-warning {
+    @apply bg-yellow-100 text-yellow-800;
+  }
+
+  .status-critical {
+    @apply bg-red-100 text-red-800;
+  }
+  
+  .chat-message {
+    @apply p-3 rounded-lg max-w-xs;
+  }
+  
+  .chat-user {
+    @apply bg-primary-500 text-white ml-auto;
+  }
+  
+  .chat-agent {
+    @apply bg-gray-200 text-gray-800;
+  }
+}
