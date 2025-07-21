@@ -33,6 +33,12 @@ const Sidebar = ({ isOpen, activeView, setActiveView }) => {
       description: 'Talk to the AI agent'
     },
     {
+      id: 'alert-test',
+      label: 'Alert Test',
+      icon: AlertTriangle,
+      description: 'Test alert system'
+    },
+    {
       id: 'settings',
       label: 'Settings',
       icon: Settings,
@@ -55,27 +61,29 @@ const Sidebar = ({ isOpen, activeView, setActiveView }) => {
     }
   };
 
-  const handleReport = () => {
-    // Generate a simple report
-    const report = {
-      department: selectedDepartment,
-      priority: priorityLevel,
-      interval: timeInterval,
-      timestamp: new Date().toISOString()
-    };
-    console.log('Generated Report:', report);
-    alert(`Report generated for ${selectedDepartment} department`);
+  const handleEmergencyAlert = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/api/alerts/create-test');
+      if (response.ok) {
+        alert(`🚨 Emergency alert created for ${selectedDepartment}`);
+        setSystemStatus('Alert Created');
+        setTimeout(() => setSystemStatus('Operational'), 3000);
+      }
+    } catch (error) {
+      console.error('Emergency alert failed:', error);
+      setSystemStatus('Error');
+    }
   };
 
   const quickActions = [
     {
-      label: 'Report',
+      label: 'Emergency Alert',
       icon: Activity,
-      color: 'text-blue-600 bg-blue-100',
-      action: handleReport
+      color: 'text-red-600 bg-red-100',
+      action: handleEmergencyAlert
     },
     {
-      label: 'Refresh',
+      label: 'Refresh Data',
       icon: RefreshCw,
       color: 'text-green-600 bg-green-100',
       action: handleRefresh
@@ -93,60 +101,64 @@ const Sidebar = ({ isOpen, activeView, setActiveView }) => {
       <div className="p-6 border-b border-gray-200">
         {isOpen ? (
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Settings</h2>
-            <p className="text-sm text-gray-500 mt-1">Select Department</p>
-            
-            {/* Department Selector */}
-            <select
-              className="mt-3 w-full p-2 border border-gray-300 rounded-md text-sm"
-              value={selectedDepartment}
-              onChange={(e) => setSelectedDepartment(e.target.value)}
-            >
-              <option>General Ward</option>
-              <option>ICU</option>
-              <option>Emergency</option>
-              <option>Pediatric</option>
-              <option>Maternity</option>
-            </select>
+            <h2 className="text-lg font-semibold text-gray-900">Hospital Control</h2>
+            <p className="text-sm text-gray-500 mt-1">Quick Actions & Status</p>
 
-            {/* Priority Level */}
-            <div className="mt-4">
-              <label className="text-sm text-gray-600">Priority Level</label>
-              <div className="flex items-center mt-2">
+            {/* Emergency Mode Toggle */}
+            <div className="mt-3">
+              <label className="flex items-center space-x-2">
                 <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={priorityLevel}
-                  onChange={(e) => setPriorityLevel(e.target.value)}
-                  className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  type="checkbox"
+                  checked={emergencyMode}
+                  onChange={(e) => setEmergencyMode(e.target.checked)}
+                  className="rounded border-gray-300 text-red-600 focus:ring-red-500"
                 />
-                <span className={`ml-2 text-xs font-medium ${
-                  priorityLevel > 75 ? 'text-red-600' :
-                  priorityLevel > 50 ? 'text-yellow-600' : 'text-green-600'
-                }`}>
-                  {priorityLevel > 75 ? 'High' : priorityLevel > 50 ? 'Medium' : 'Low'}
+                <span className={`text-sm font-medium ${emergencyMode ? 'text-red-600' : 'text-gray-700'}`}>
+                  Emergency Mode
                 </span>
-              </div>
+              </label>
+              {emergencyMode && (
+                <p className="text-xs text-red-600 mt-1">
+                  🚨 Emergency protocols activated
+                </p>
+              )}
             </div>
 
-            {/* Time Range Selector */}
+            {/* Current Department Focus */}
             <div className="mt-4">
-              <label className="text-sm text-gray-600">Time Range Interval</label>
-              <div className="flex space-x-1 mt-2">
-                {['5m', '15m', '1h', '6h', '24h'].map((interval) => (
-                  <button
-                    key={interval}
-                    onClick={() => setTimeInterval(interval)}
-                    className={`px-2 py-1 text-xs rounded transition-colors ${
-                      interval === timeInterval
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {interval}
-                  </button>
-                ))}
+              <label className="text-sm text-gray-600">Focus Department</label>
+              <select
+                className="mt-1 w-full p-2 border border-gray-300 rounded-md text-sm"
+                value={selectedDepartment}
+                onChange={(e) => setSelectedDepartment(e.target.value)}
+              >
+                <option>ICU</option>
+                <option>Emergency</option>
+                <option>General Ward</option>
+                <option>Pediatric</option>
+                <option>Maternity</option>
+              </select>
+            </div>
+
+            {/* System Status Indicator */}
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">System Status</span>
+                <div className={`flex items-center space-x-1 ${
+                  systemStatus === 'Operational' ? 'text-green-600' :
+                  systemStatus === 'Updated' ? 'text-blue-600' :
+                  systemStatus === 'Error' ? 'text-red-600' : 'text-gray-600'
+                }`}>
+                  <div className={`w-2 h-2 rounded-full ${
+                    systemStatus === 'Operational' ? 'bg-green-500' :
+                    systemStatus === 'Updated' ? 'bg-blue-500' :
+                    systemStatus === 'Error' ? 'bg-red-500' : 'bg-gray-500'
+                  }`} />
+                  <span className="text-xs font-medium">{systemStatus}</span>
+                </div>
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Last update: {lastUpdate.toLocaleTimeString()}
               </div>
             </div>
           </div>
@@ -273,15 +285,24 @@ const Sidebar = ({ isOpen, activeView, setActiveView }) => {
               </span>
             </div>
             <div className="flex items-center justify-between mt-1">
-              <span>Department</span>
+              <span>Focus Ward</span>
               <span className="text-blue-600">{selectedDepartment}</span>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span>AI Systems</span>
+              <span className="text-green-600">Active</span>
             </div>
             {emergencyMode && (
               <div className="flex items-center justify-between mt-1">
                 <span>Emergency</span>
-                <span className="text-red-600 font-medium">ACTIVE</span>
+                <span className="text-red-600 font-medium animate-pulse">🚨 ACTIVE</span>
               </div>
             )}
+            <div className="mt-2 pt-2 border-t border-gray-100">
+              <div className="text-center text-gray-400 text-xs">
+                Hospital Agent v1.0.0
+              </div>
+            </div>
           </div>
         </div>
       )}

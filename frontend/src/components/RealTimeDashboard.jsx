@@ -2,16 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Bell,
   BedDouble,
-  Users,
   AlertTriangle,
   CheckCircle,
-  Clock,
   Activity,
   TrendingUp,
   Zap,
   RefreshCw
 } from 'lucide-react';
 import PatientAssignmentModal from './PatientAssignmentModal';
+import { useAlerts } from '../contexts/AlertContext';
 
 // Simple UI components
 const Card = ({ children, className = "" }) => (
@@ -123,7 +122,8 @@ const TabsContent = ({ value, children, activeTab }) => (
 
 const RealTimeDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
-  const [alerts, setAlerts] = useState([]);
+  // Use the AlertContext instead of local state
+  const { alerts } = useAlerts();
   const [connectionStatus, setConnectionStatus] = useState('polling');
   const [lastUpdate, setLastUpdate] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -132,61 +132,117 @@ const RealTimeDashboard = () => {
     bedInfo: null
   });
 
-  // Fetch data using polling (simplified approach) - DISABLED TO PREVENT INFINITE REFRESH
+  // Fetch data from backend API
   useEffect(() => {
-    // Set mock data immediately to prevent loading state issues
-    setDashboardData({
-      occupancy: {
-        overall: {
-          total_beds: 112,
-          occupied_beds: 82,
-          vacant_beds: 23,
-          cleaning_beds: 5,
-          maintenance_beds: 2,
-          occupancy_rate: 73.2
-        },
-        ward_breakdown: [
-          { ward: "ICU", total_beds: 20, occupied: 13, vacant: 7, cleaning: 0, occupancy_rate: 65.0 },
-          { ward: "Emergency", total_beds: 25, occupied: 17, vacant: 4, cleaning: 2, occupancy_rate: 68.0 },
-          { ward: "General", total_beds: 40, occupied: 31, vacant: 7, cleaning: 2, occupancy_rate: 77.5 },
-          { ward: "Pediatric", total_beds: 15, occupied: 10, vacant: 4, cleaning: 1, occupancy_rate: 66.7 },
-          { ward: "Maternity", total_beds: 12, occupied: 11, vacant: 1, cleaning: 0, occupancy_rate: 91.7 }
-        ]
-      },
-      available_beds: [
-        { bed_id: 1, bed_number: "ICU-01", room_number: "101", ward: "ICU", floor_number: 1, wing: "North", private_room: true, daily_rate: 500 },
-        { bed_id: 2, bed_number: "ICU-03", room_number: "103", ward: "ICU", floor_number: 1, wing: "North", private_room: true, daily_rate: 500 },
-        { bed_id: 3, bed_number: "GEN-15", room_number: "215", ward: "General", floor_number: 2, wing: "South", private_room: false, daily_rate: 200 }
-      ],
-      active_alerts: []
-    });
+    let isMounted = true;
 
-    setLastUpdate(new Date());
-    setConnectionStatus('connected');
-    setLoading(false);
-  }, []); // Empty dependency array - runs only once
+    const fetchData = async () => {
+      try {
+        if (!isMounted) return;
+        setLoading(true);
 
-  // Manual refresh function - MOCK IMPLEMENTATION
-  const requestUpdate = useCallback(() => {
-    setLastUpdate(new Date());
-    setConnectionStatus('connected');
-    // Just update timestamp for now to prevent API errors
+        // Fetch occupancy data
+        const occupancyResponse = await fetch('http://localhost:8000/api/beds/occupancy');
+        if (!occupancyResponse.ok) throw new Error('Failed to fetch occupancy data');
+        const occupancyData = await occupancyResponse.json();
+
+        // Fetch available beds
+        const bedsResponse = await fetch('http://localhost:8000/api/beds');
+        if (!bedsResponse.ok) throw new Error('Failed to fetch beds data');
+        const bedsData = await bedsResponse.json();
+        const availableBeds = bedsData.filter(bed => bed.status === 'vacant');
+
+        if (!isMounted) return;
+
+        setDashboardData({
+          occupancy: occupancyData,
+          available_beds: availableBeds,
+          active_alerts: alerts // Use alerts from context
+        });
+
+        setLastUpdate(new Date());
+        setConnectionStatus('connected');
+        setLoading(false);
+
+      } catch (error) {
+        if (!isMounted) return;
+
+        console.error('Error fetching data:', error);
+        setConnectionStatus('error');
+        setLoading(false);
+
+        // Set fallback mock data only on error
+        setDashboardData({
+          occupancy: {
+            overall: {
+              total_beds: 112,
+              occupied_beds: 82,
+              vacant_beds: 23,
+              cleaning_beds: 5,
+              maintenance_beds: 2,
+              occupancy_rate: 73.2
+            },
+            ward_breakdown: [
+              { ward: "ICU", total_beds: 20, occupied: 13, vacant: 7, cleaning: 0, occupancy_rate: 65.0 },
+              { ward: "Emergency", total_beds: 25, occupied: 17, vacant: 4, cleaning: 2, occupancy_rate: 68.0 },
+              { ward: "General", total_beds: 40, occupied: 31, vacant: 7, cleaning: 2, occupancy_rate: 77.5 },
+              { ward: "Pediatric", total_beds: 15, occupied: 10, vacant: 4, cleaning: 1, occupancy_rate: 66.7 },
+              { ward: "Maternity", total_beds: 12, occupied: 11, vacant: 1, cleaning: 0, occupancy_rate: 91.7 }
+            ]
+          },
+          available_beds: [
+            { bed_id: 1, bed_number: "ICU-01", room_number: "101", ward: "ICU", floor_number: 1, wing: "North", private_room: true, daily_rate: 500 },
+            { bed_id: 2, bed_number: "ICU-03", room_number: "103", ward: "ICU", floor_number: 1, wing: "North", private_room: true, daily_rate: 500 },
+            { bed_id: 3, bed_number: "GEN-15", room_number: "215", ward: "General", floor_number: 2, wing: "South", private_room: false, daily_rate: 200 }
+          ],
+          active_alerts: []
+        });
+        setLastUpdate(new Date());
+      }
+    };
+
+    // Initial fetch
+    fetchData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []); // Empty dependency array - runs only once on mount
+
+  // Manual refresh function
+  const requestUpdate = useCallback(async () => {
+    try {
+      setConnectionStatus('polling');
+
+      // Fetch occupancy data
+      const occupancyResponse = await fetch('http://localhost:8000/api/beds/occupancy');
+      if (!occupancyResponse.ok) throw new Error('Failed to fetch occupancy data');
+      const occupancyData = await occupancyResponse.json();
+
+      // Fetch available beds
+      const bedsResponse = await fetch('http://localhost:8000/api/beds');
+      if (!bedsResponse.ok) throw new Error('Failed to fetch beds data');
+      const bedsData = await bedsResponse.json();
+      const availableBeds = bedsData.filter(bed => bed.status === 'vacant');
+
+      setDashboardData({
+        occupancy: occupancyData,
+        available_beds: availableBeds,
+        active_alerts: []
+      });
+
+      setLastUpdate(new Date());
+      setConnectionStatus('connected');
+
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      setConnectionStatus('error');
+    }
   }, []);
 
 
 
-  const resolveAlert = async (alertId) => {
-    try {
-      const response = await fetch(`/api/alerts/${alertId}/resolve`, {
-        method: 'POST'
-      });
-      if (response.ok) {
-        setAlerts(prev => prev.filter(alert => alert.id !== alertId));
-      }
-    } catch (error) {
-      console.error('Failed to resolve alert:', error);
-    }
-  };
+
 
   const handleAssignPatient = (bed, e) => {
     if (e) {
@@ -227,14 +283,7 @@ const RealTimeDashboard = () => {
     return 'bg-green-500';
   };
 
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'critical': return 'bg-red-100 text-red-800 border-red-200';
-      case 'high': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      default: return 'bg-blue-100 text-blue-800 border-blue-200';
-    }
-  };
+
 
   if (!dashboardData || loading) {
     return (
@@ -374,7 +423,6 @@ const RealTimeDashboard = () => {
       <Tabs defaultValue="wards" className="space-y-4">
         <TabsList>
           <TabsTrigger value="wards">Ward Status</TabsTrigger>
-          <TabsTrigger value="alerts">Active Alerts</TabsTrigger>
           <TabsTrigger value="available">Available Beds</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
@@ -410,72 +458,7 @@ const RealTimeDashboard = () => {
           </div>
         </TabsContent>
 
-        <TabsContent value="alerts" className="space-y-4">
-          {alerts.length === 0 ? (
-            <Card>
-              <CardContent className="text-center py-8">
-                <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                <p className="text-lg font-medium">No Active Alerts</p>
-                <p className="text-muted-foreground">All systems are operating normally</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {alerts.map((alert) => (
-                <Card key={alert.id} className={`border-l-4 ${
-                  alert.priority === 'critical' ? 'border-l-red-500' :
-                  alert.priority === 'high' ? 'border-l-orange-500' :
-                  alert.priority === 'medium' ? 'border-l-yellow-500' : 'border-l-blue-500'
-                }`}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <Badge className={getPriorityColor(alert.priority)}>
-                            {alert.priority?.toUpperCase()}
-                          </Badge>
-                          <span className="text-sm text-muted-foreground">
-                            {alert.department}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(alert.created_at).toLocaleTimeString()}
-                          </span>
-                        </div>
-                        <h4 className="font-medium">{alert.title}</h4>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {alert.message}
-                        </p>
-                        {alert.metadata && (
-                          <div className="mt-2 text-xs text-muted-foreground">
-                            {Object.entries(alert.metadata).map(([key, value]) => (
-                              <span key={key} className="mr-3">
-                                {key}: {value}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex space-x-2">
-                        {alert.action_required && (
-                          <Button size="sm" variant="outline">
-                            Take Action
-                          </Button>
-                        )}
-                        <Button 
-                          size="sm" 
-                          variant="ghost"
-                          onClick={() => resolveAlert(alert.id)}
-                        >
-                          Resolve
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
+
 
         <TabsContent value="available" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

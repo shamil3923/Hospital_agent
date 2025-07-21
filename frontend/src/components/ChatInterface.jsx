@@ -8,8 +8,9 @@ const ChatInterface = () => {
     {
       id: 1,
       type: 'agent',
-      content: "Hello! I'm the Bed Management Agent. I can help you with bed occupancy data, patient flow optimization, resource management, and patient assignments. What would you like to know?",
-      timestamp: new Date()
+      content: "🏥 **Welcome to the Enhanced Hospital Operations Assistant!**\n\nI can help you with:\n\n🛏️ **Bed Management:**\n• Check ICU bed availability\n• View emergency department status\n• Get overall hospital occupancy\n\n👨‍⚕️ **Patient Operations:**\n• Assign patients to beds with automated workflows\n• Find available doctors by specialty\n• Coordinate medical team assignments\n\n📊 **Smart Queries:**\n• \"Show me ICU beds\" - Get ICU-specific information\n• \"Assign patient to ICU\" - Start automated assignment workflow\n• \"Hospital bed status\" - Overall capacity overview\n\nTry asking me something specific!",
+      timestamp: new Date(),
+      enhanced: true
     }
   ]);
   const [inputMessage, setInputMessage] = useState('');
@@ -98,12 +99,12 @@ const ChatInterface = () => {
   };
 
   const suggestedQuestions = [
-    "Can I get the bed occupancy data for last 5 days?",
-    "Show me available beds in ICU",
-    "Assign a patient to an available bed",
-    "What are the current critical alerts?",
-    "Find the best bed for a cardiac patient",
-    "Show me beds available for emergency admission"
+    "Show me ICU beds",
+    "Show me all patients",
+    "Show me all doctors",
+    "ICU doctors",
+    "Assign patient to ICU",
+    "Hospital bed status"
   ];
 
   const handleSendMessage = async () => {
@@ -234,9 +235,106 @@ const ChatInterface = () => {
                         ? 'bg-green-50 border border-green-200 text-green-800'
                         : 'bg-white border border-gray-200 text-gray-800'
                 }`}>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                    {message.content}
-                  </p>
+                  {/* Enhanced message content rendering */}
+                  <div className="text-sm leading-relaxed">
+                    {message.enhanced ? (
+                      <div
+                        className="prose prose-sm max-w-none"
+                        dangerouslySetInnerHTML={{
+                          __html: message.content
+                            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                            .replace(/\n/g, '<br>')
+                            .replace(/•/g, '&bull;')
+                        }}
+                      />
+                    ) : (
+                      <div className="whitespace-pre-wrap">{message.content}</div>
+                    )}
+                  </div>
+
+                  {/* Quick action buttons for enhanced responses */}
+                  {message.type === 'agent' && message.content.includes('ICU') && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setInputMessage('assign patient to ICU')}
+                        className="px-3 py-1 text-xs rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
+                      >
+                        🏥 Assign Patient to ICU
+                      </button>
+                      <button
+                        onClick={() => setInputMessage('show available ICU doctors')}
+                        className="px-3 py-1 text-xs rounded-full bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
+                      >
+                        👨‍⚕️ Find ICU Doctors
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Emergency department actions */}
+                  {message.type === 'agent' && message.content.includes('Emergency') && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setInputMessage('assign emergency patient')}
+                        className="px-3 py-1 text-xs rounded-full bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors"
+                      >
+                        🚑 Emergency Assignment
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Patient and Doctor management actions */}
+                  {message.type === 'agent' && (message.content.includes('Patient') || message.content.includes('patients')) && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setInputMessage('show me all doctors')}
+                        className="px-3 py-1 text-xs rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
+                      >
+                        👨‍⚕️ View Doctors
+                      </button>
+                      <button
+                        onClick={() => setInputMessage('assign patient to ICU')}
+                        className="px-3 py-1 text-xs rounded-full bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
+                      >
+                        🏥 Assign to ICU
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Doctor management actions */}
+                  {message.type === 'agent' && (message.content.includes('Medical Staff') || message.content.includes('doctors')) && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setInputMessage('show me all patients')}
+                        className="px-3 py-1 text-xs rounded-full bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors"
+                      >
+                        📋 View Patients
+                      </button>
+                      <button
+                        onClick={() => setInputMessage('ICU doctors')}
+                        className="px-3 py-1 text-xs rounded-full bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors"
+                      >
+                        🏥 ICU Specialists
+                      </button>
+                    </div>
+                  )}
+
+                  {/* General bed management actions */}
+                  {message.type === 'agent' && message.content.includes('bed') && !message.content.includes('ICU') && !message.content.includes('Emergency') && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setInputMessage('hospital bed status')}
+                        className="px-3 py-1 text-xs rounded-full bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 transition-colors"
+                      >
+                        📊 Bed Status
+                      </button>
+                      <button
+                        onClick={() => setInputMessage('show me ICU beds')}
+                        className="px-3 py-1 text-xs rounded-full bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors"
+                      >
+                        🏥 ICU Beds
+                      </button>
+                    </div>
+                  )}
 
                   {/* Assignment Response with Available Beds */}
                   {message.isAssignmentResponse && message.availableBeds && (

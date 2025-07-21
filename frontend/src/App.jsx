@@ -3,33 +3,39 @@ import RealTimeDashboard from './components/RealTimeDashboard';
 import ChatInterface from './components/ChatInterface';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
+import AlertTest from './components/AlertTest';
+import { AlertProvider, useAlerts } from './contexts/AlertContext';
 
-function App() {
+// Main App component that uses alerts
+const AppContent = () => {
   const [activeView, setActiveView] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { alertCount } = useAlerts();
 
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
-      <Sidebar 
+      <Sidebar
         isOpen={sidebarOpen}
         activeView={activeView}
         setActiveView={setActiveView}
       />
-      
+
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <Header 
+        <Header
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
+          alertCount={alertCount}
         />
-        
+
         {/* Main Content Area */}
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50">
           <div className="container mx-auto px-6 py-8">
             {activeView === 'dashboard' && <RealTimeDashboard />}
             {activeView === 'chat' && <ChatInterface />}
+            {activeView === 'alert-test' && <AlertTest />}
             {activeView === 'settings' && (
               <div className="bg-white rounded-lg shadow p-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">Settings</h2>
@@ -40,6 +46,15 @@ function App() {
         </main>
       </div>
     </div>
+  );
+};
+
+// Main App component with AlertProvider
+function App() {
+  return (
+    <AlertProvider>
+      <AppContent />
+    </AlertProvider>
   );
 }
 

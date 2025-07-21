@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, User, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 
 const PatientAssignmentModal = ({ isOpen, onClose, bedInfo, onAssignSuccess }) => {
   const [step, setStep] = useState(1); // 1: Patient Info, 2: Medical Details, 3: Confirmation
   const [loading, setLoading] = useState(false);
+  const [doctors, setDoctors] = useState([]);
+  const [doctorsLoading, setDoctorsLoading] = useState(true);
   const [patientData, setPatientData] = useState({
     // Basic Info
     patient_id: '',
@@ -12,25 +14,51 @@ const PatientAssignmentModal = ({ isOpen, onClose, bedInfo, onAssignSuccess }) =
     gender: 'male',
     phone: '',
     emergency_contact: '',
-    
+
     // Medical Info
     primary_condition: '',
-    secondary_conditions: [],
-    allergies: [],
-    medications: [],
     severity: 'stable',
-    attending_physician: '',
-    admission_type: 'scheduled',
-    priority: 'routine',
-    
-    // Additional Info
-    insurance_id: '',
-    special_needs: [],
-    estimated_los: ''
+    attending_physician: ''
   });
 
   const [errors, setErrors] = useState({});
   const [assignmentResult, setAssignmentResult] = useState(null);
+
+  // Fetch doctors function
+  const fetchDoctors = async () => {
+    try {
+      setDoctorsLoading(true);
+      console.log('Fetching doctors from API...'); // Debug log
+
+      const response = await fetch('http://localhost:8000/api/doctors');
+      console.log('Response status:', response.status); // Debug log
+      console.log('Response headers:', response.headers); // Debug log
+
+      if (response.ok) {
+        const doctorsData = await response.json();
+        console.log('API Response:', doctorsData); // Debug log
+        // The API returns {doctors: [...], count: 3}, so we need to extract the doctors array
+        const doctorsList = doctorsData.doctors || [];
+        console.log('Doctors extracted:', doctorsList); // Debug log
+        console.log('Number of doctors:', doctorsList.length); // Debug log
+        setDoctors(doctorsList);
+      } else {
+        console.error('API request failed with status:', response.status);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+      }
+    } catch (error) {
+      console.error('Error fetching doctors:', error);
+      setDoctors([]); // Set empty array on error
+    } finally {
+      setDoctorsLoading(false);
+    }
+  };
+
+  // Fetch doctors on component mount
+  useEffect(() => {
+    fetchDoctors();
+  }, []);
 
   // Reset form when modal opens
   useEffect(() => {
@@ -44,16 +72,8 @@ const PatientAssignmentModal = ({ isOpen, onClose, bedInfo, onAssignSuccess }) =
         phone: '',
         emergency_contact: '',
         primary_condition: '',
-        secondary_conditions: [],
-        allergies: [],
-        medications: [],
         severity: 'stable',
-        attending_physician: '',
-        admission_type: 'scheduled',
-        priority: 'routine',
-        insurance_id: '',
-        special_needs: [],
-        estimated_los: ''
+        attending_physician: ''
       });
       setErrors({});
       setAssignmentResult(null);
@@ -77,13 +97,7 @@ const PatientAssignmentModal = ({ isOpen, onClose, bedInfo, onAssignSuccess }) =
     }
   };
 
-  const handleArrayInput = (field, value) => {
-    const items = value.split(',').map(item => item.trim()).filter(item => item);
-    setPatientData(prev => ({
-      ...prev,
-      [field]: items
-    }));
-  };
+
 
   const validateStep = (stepNumber) => {
     const newErrors = {};
@@ -129,29 +143,52 @@ const PatientAssignmentModal = ({ isOpen, onClose, bedInfo, onAssignSuccess }) =
     if (!validateStep(2)) return;
 
     setLoading(true);
+    try {
+      // Use the combined endpoint to create patient and assign bed in one call
+      const response = await fetch(`http://localhost:8000/api/beds/${bedInfo.bed_number}/assign-new-patient`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(patientData)
+      });
 
-    // Simulate API call with timeout - MOCK IMPLEMENTATION
-    setTimeout(() => {
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to assign patient to bed');
+      }
+
+      const result = await response.json();
+
       setAssignmentResult({
         success: true,
-        admission_id: `ADM${Date.now()}`,
-        workflow_id: `WF${Date.now()}`,
-        bed_number: bedInfo.bed_number,
-        patient_name: patientData.patient_name
+        admission_id: result.patient_id,
+        workflow_id: result.workflow_id,
+        bed_number: result.bed_number,
+        patient_name: result.patient_name
       });
 
       setStep(4); // Success step
-      setLoading(false);
 
       // Notify parent component
       if (onAssignSuccess) {
         onAssignSuccess({
           bed_id: bedInfo.bed_id,
-          patient_id: patientData.patient_id,
-          patient_name: patientData.patient_name
+          patient_id: result.patient_id,
+          patient_name: result.patient_name
         });
       }
-    }, 2000); // 2 second delay to simulate API call
+
+    } catch (error) {
+      console.error('Assignment error:', error);
+      setAssignmentResult({
+        success: false,
+        error: error.message
+      });
+      setStep(4); // Error step
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -322,19 +359,6 @@ const PatientAssignmentModal = ({ isOpen, onClose, bedInfo, onAssignSuccess }) =
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Insurance ID
-                  </label>
-                  <input
-                    type="text"
-                    value={patientData.insurance_id}
-                    onChange={(e) => handleInputChange('insurance_id', e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-md"
-                    placeholder="Insurance ID"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Patient ID
                   </label>
                   <input
@@ -372,16 +396,39 @@ const PatientAssignmentModal = ({ isOpen, onClose, bedInfo, onAssignSuccess }) =
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Attending Physician *
-                  </label>
-                  <input
-                    type="text"
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Attending Physician *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={fetchDoctors}
+                      className="text-xs text-blue-600 hover:text-blue-800"
+                    >
+                      Refresh Doctors ({doctors.length})
+                    </button>
+                  </div>
+                  <select
                     value={patientData.attending_physician}
                     onChange={(e) => handleInputChange('attending_physician', e.target.value)}
                     className={`w-full p-2 border rounded-md ${errors.attending_physician ? 'border-red-500' : 'border-gray-300'}`}
-                    placeholder="Dr. Name"
-                  />
+                    disabled={doctorsLoading}
+                  >
+                    {doctorsLoading ? (
+                      <option value="">Loading doctors...</option>
+                    ) : doctors.length === 0 ? (
+                      <option value="">No doctors available</option>
+                    ) : (
+                      <>
+                        <option value="">Select a doctor</option>
+                        {doctors.map((doctor) => (
+                          <option key={doctor.id} value={doctor.name}>
+                            {doctor.name} - {doctor.specialization}
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
                   {errors.attending_physician && <p className="text-red-500 text-xs mt-1">{errors.attending_physician}</p>}
                 </div>
 
@@ -432,45 +479,7 @@ const PatientAssignmentModal = ({ isOpen, onClose, bedInfo, onAssignSuccess }) =
                   </select>
                 </div>
 
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Allergies (comma-separated)
-                  </label>
-                  <input
-                    type="text"
-                    value={patientData.allergies.join(', ')}
-                    onChange={(e) => handleArrayInput('allergies', e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-md"
-                    placeholder="e.g., Penicillin, Latex, Peanuts"
-                  />
-                </div>
 
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Current Medications (comma-separated)
-                  </label>
-                  <input
-                    type="text"
-                    value={patientData.medications.join(', ')}
-                    onChange={(e) => handleArrayInput('medications', e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-md"
-                    placeholder="e.g., Aspirin 81mg, Metformin 500mg"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Estimated Length of Stay (days)
-                  </label>
-                  <input
-                    type="number"
-                    value={patientData.estimated_los}
-                    onChange={(e) => handleInputChange('estimated_los', e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-md"
-                    placeholder="Days"
-                    min="1"
-                  />
-                </div>
               </div>
             </div>
           )}
@@ -510,19 +519,15 @@ const PatientAssignmentModal = ({ isOpen, onClose, bedInfo, onAssignSuccess }) =
                     <span className="ml-2">{bedInfo?.ward}</span>
                   </div>
                   <div>
-                    <span className="text-gray-600">Priority:</span>
+                    <span className="text-gray-600">Severity:</span>
                     <span className={`ml-2 px-2 py-1 rounded text-xs ${
-                      patientData.priority === 'critical' ? 'bg-red-100 text-red-800' :
-                      patientData.priority === 'urgent' ? 'bg-orange-100 text-orange-800' :
-                      patientData.priority === 'semi_urgent' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-green-100 text-green-800'
+                      patientData.severity === 'critical' ? 'bg-red-100 text-red-800' :
+                      patientData.severity === 'serious' ? 'bg-orange-100 text-orange-800' :
+                      patientData.severity === 'stable' ? 'bg-green-100 text-green-800' :
+                      'bg-blue-100 text-blue-800'
                     }`}>
-                      {patientData.priority.replace('_', '-').toUpperCase()}
+                      {patientData.severity.toUpperCase()}
                     </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Type:</span>
-                    <span className="ml-2">{patientData.admission_type}</span>
                   </div>
                 </div>
               </div>

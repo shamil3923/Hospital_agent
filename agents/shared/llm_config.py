@@ -17,11 +17,11 @@ class LLMConfig:
         self.model_name = settings.llm_model
         self.provider = settings.llm_provider
         
-    def get_llm(self, temperature: float = 0.1, max_tokens: Optional[int] = None) -> BaseChatModel:
-        """Get configured LLM instance"""
+    def get_llm(self, temperature: float = 0.3, max_tokens: Optional[int] = 1200) -> BaseChatModel:
+        """Get configured LLM instance with optimized settings for Gemini 2.5 Flash"""
         if self.provider == "google":
             return ChatGoogleGenerativeAI(
-                model=self.model_name,
+                model=self.model_name,  # gemini-2.5-flash (real Gemini 2.5 Flash)
                 google_api_key=self.api_key,
                 temperature=temperature,
                 max_tokens=max_tokens,

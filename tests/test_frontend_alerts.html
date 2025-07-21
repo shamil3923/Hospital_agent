@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Frontend Alert Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .alert { padding: 10px; margin: 10px 0; border-left: 4px solid #ccc; }
+        .critical { border-left-color: #dc2626; background: #fef2f2; }
+        .high { border-left-color: #ea580c; background: #fff7ed; }
+        .medium { border-left-color: #ca8a04; background: #fffbeb; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Frontend Alert Connectivity Test</h1>
+    <div id="status">Testing...</div>
+    <div id="alerts"></div>
+
+    <script>
+        async function testAlerts() {
+            const statusDiv = document.getElementById('status');
+            const alertsDiv = document.getElementById('alerts');
+            
+            try {
+                statusDiv.innerHTML = '🔄 Fetching alerts from API...';
+                
+                const response = await fetch('http://localhost:8000/api/alerts/active');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Alert API Response:', data);
+                
+                const alerts = data.alerts || [];
+                
+                statusDiv.innerHTML = `<span class="success">✅ Success! Found ${alerts.length} alerts</span>`;
+                
+                if (alerts.length === 0) {
+                    alertsDiv.innerHTML = '<div class="alert">No alerts found</div>';
+                } else {
+                    alertsDiv.innerHTML = alerts.map(alert => `
+                        <div class="alert ${alert.priority}">
+                            <strong>[${alert.priority?.toUpperCase()}] ${alert.title}</strong><br>
+                            <em>${alert.department}</em><br>
+                            ${alert.message}
+                        </div>
+                    `).join('');
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                statusDiv.innerHTML = `<span class="error">❌ Error: ${error.message}</span>`;
+                alertsDiv.innerHTML = '';
+            }
+        }
+        
+        // Test immediately and then every 5 seconds
+        testAlerts();
+        setInterval(testAlerts, 5000);
+    </script>
+</body>
+</html>

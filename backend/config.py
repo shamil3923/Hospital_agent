@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     port: int = 8000
     
     # Database
-    database_url: str = "postgresql://postgres:hospital123@localhost:5432/hospital_ops"
+    database_url: str = "sqlite:///./hospital.db"
     
     # Security
     secret_key: str = "your-secret-key-change-in-production"
@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     
     # CORS
-    allowed_hosts: str = "http://localhost:3000,http://127.0.0.1:3000"
+    allowed_hosts: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
     
     # Redis
     redis_url: str = "redis://localhost:6379"
@@ -36,11 +36,14 @@ class Settings(BaseSettings):
     
     # LLM Configuration
     google_api_key: str = "AIzaSyCrEfICW4RYyJW45Uy0ZSduXVKUKjNu25I"
-    llm_model: str = "gemini-2.0-flash-exp"
+    llm_model: str = "gemini-2.5-flash"  # Real Gemini 2.5 Flash model
     llm_provider: str = "google"
     
     # MCP Server
     mcp_server_port: int = 3001
+    mcp_server_host: str = "localhost"
+    mcp_enabled: bool = True
+    mcp_log_level: str = "INFO"
     
     # Agent Configuration
     max_agent_retries: int = 3

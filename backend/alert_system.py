@@ -9,7 +9,10 @@ from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
 
-from database import SessionLocal, Bed, Patient, BedOccupancyHistory
+try:
+    from .database import SessionLocal, Bed, Patient, BedOccupancyHistory
+except ImportError:
+    from database import SessionLocal, Bed, Patient, BedOccupancyHistory
 from sqlalchemy import func
 
 logger = logging.getLogger(__name__)
@@ -294,20 +297,40 @@ class RealTimeAlertSystem:
                 icu_rate = (icu_occupied / icu_total * 100) if icu_total > 0 else 0
                 
                 if icu_rate >= 90:
-                    alert = Alert(
-                        type=AlertType.CAPACITY_CRITICAL,
-                        priority=AlertPriority.CRITICAL,
-                        title="ICU Capacity Critical",
-                        message=f"ICU at {icu_rate:.1f}% capacity. Review step-down candidates.",
-                        department="ICU",
-                        action_required=True,
-                        metadata={
-                            "icu_occupancy_rate": icu_rate,
-                            "icu_total": icu_total,
-                            "icu_occupied": icu_occupied
-                        }
-                    )
-                    await self.create_alert(alert)
+                    # Check if we already have a recent ICU capacity alert
+                    existing_alert = None
+                    for alert_id, alert in self.active_alerts.items():
+                        if (alert.type == AlertType.CAPACITY_CRITICAL and
+                            alert.department == "ICU" and
+                            "icu_occupancy_rate" in alert.metadata):
+                            existing_alert = alert
+                            break
+
+                    # Only create new alert if no existing one or rate changed significantly
+                    if not existing_alert or abs(existing_alert.metadata.get("icu_occupancy_rate", 0) - icu_rate) > 5:
+                        alert = Alert(
+                            id="",  # Will be set by create_alert
+                            type=AlertType.CAPACITY_CRITICAL,
+                            priority=AlertPriority.CRITICAL,
+                            title="ICU Capacity Critical",
+                            message=f"ICU at {icu_rate:.1f}% capacity ({icu_occupied}/{icu_total} beds). Immediate action required!",
+                            department="ICU",
+                            action_required=True,
+                            metadata={
+                                "icu_occupancy_rate": icu_rate,
+                                "icu_total": icu_total,
+                                "icu_occupied": icu_occupied,
+                                "alert_type": "capacity_critical",
+                                "recommended_actions": [
+                                    "Review step-down candidates",
+                                    "Contact overflow facilities",
+                                    "Expedite discharges",
+                                    "Activate surge protocols"
+                                ]
+                            }
+                        )
+                        await self.create_alert(alert)
+                        logger.warning(f"🚨 ICU CRITICAL ALERT: {icu_rate:.1f}% occupancy ({icu_occupied}/{icu_total})")
                 
                 db.close()
                 

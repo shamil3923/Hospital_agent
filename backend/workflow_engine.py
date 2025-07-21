@@ -9,8 +9,12 @@ from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 
-from database import SessionLocal, Bed, Patient, BedOccupancyHistory, Staff
-from alert_system import alert_system, Alert, AlertType, AlertPriority
+try:
+    from .database import SessionLocal, Bed, Patient, BedOccupancyHistory, Staff
+    from .alert_system import alert_system, Alert, AlertType, AlertPriority
+except ImportError:
+    from database import SessionLocal, Bed, Patient, BedOccupancyHistory, Staff
+    from alert_system import alert_system, Alert, AlertType, AlertPriority
 
 logger = logging.getLogger(__name__)
 

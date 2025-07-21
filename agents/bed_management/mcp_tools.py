@@ -119,13 +119,63 @@ def update_bed_status(bed_number: str, new_status: str, patient_id: Optional[str
         if patient_id:
             kwargs["patient_id"] = patient_id
         return await manager.execute_tool("update_bed_status", **kwargs)
-    
+
     try:
         result = run_async_tool(_update_status())
         logger.info(f"Updated bed {bed_number} status to {new_status} via MCP")
         return result
     except Exception as e:
         logger.error(f"Error updating bed status via MCP: {e}")
+        return {"error": str(e)}
+
+@tool
+def assign_patient_to_bed(patient_id: str, bed_number: str, doctor_id: Optional[str] = None) -> Dict[str, Any]:
+    """Assign existing patient to a bed using MCP"""
+    async def _assign_patient():
+        manager = await get_mcp_manager()
+        kwargs = {
+            "patient_id": patient_id,
+            "bed_number": bed_number
+        }
+        if doctor_id:
+            kwargs["doctor_id"] = doctor_id
+        return await manager.execute_tool("assign_patient_to_bed", **kwargs)
+
+    try:
+        result = run_async_tool(_assign_patient())
+        logger.info(f"Assigned patient {patient_id} to bed {bed_number} via MCP")
+        return result
+    except Exception as e:
+        logger.error(f"Error assigning patient to bed via MCP: {e}")
+        return {"error": str(e)}
+
+@tool
+def create_patient_and_assign(patient_name: str, bed_number: str, age: Optional[int] = None,
+                            gender: Optional[str] = None, condition: Optional[str] = None,
+                            doctor_id: Optional[str] = None) -> Dict[str, Any]:
+    """Create new patient and assign to bed using MCP"""
+    async def _create_and_assign():
+        manager = await get_mcp_manager()
+        kwargs = {
+            "patient_name": patient_name,
+            "bed_number": bed_number
+        }
+        if age:
+            kwargs["age"] = age
+        if gender:
+            kwargs["gender"] = gender
+        if condition:
+            kwargs["condition"] = condition
+        if doctor_id:
+            kwargs["doctor_id"] = doctor_id
+        return await manager.execute_tool("create_patient_and_assign", **kwargs)
+
+    try:
+        result = run_async_tool(_create_and_assign())
+        logger.info(f"Created patient {patient_name} and assigned to bed {bed_number} via MCP")
+        return result
+    except Exception as e:
+        logger.error(f"Error creating patient and assigning to bed via MCP: {e}")
         return {"error": str(e)}
 
 # Tool cleanup function
@@ -142,5 +192,7 @@ MCP_TOOLS = [
     get_available_beds,
     get_critical_bed_alerts,
     get_patient_discharge_predictions,
-    update_bed_status
+    update_bed_status,
+    assign_patient_to_bed,
+    create_patient_and_assign
 ]

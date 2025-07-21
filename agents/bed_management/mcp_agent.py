@@ -17,6 +17,8 @@ from .mcp_tools import (
     get_critical_bed_alerts,
     get_patient_discharge_predictions,
     update_bed_status,
+    assign_patient_to_bed,
+    create_patient_and_assign,
     cleanup_mcp_tools
 )
 
@@ -45,7 +47,9 @@ class MCPBedManagementAgent:
             get_available_beds,
             get_critical_bed_alerts,
             get_patient_discharge_predictions,
-            update_bed_status
+            update_bed_status,
+            assign_patient_to_bed,
+            create_patient_and_assign
         ]
         
         self.tool_node = ToolNode(self.tools)
@@ -153,8 +157,49 @@ class MCPBedManagementAgent:
                 state["messages"].append(AIMessage(content=f"Discharge predictions: {result}"))
                 tools_used.append("get_patient_discharge_predictions")
             
+            # Check for patient assignment requests
+            if any(keyword in user_query for keyword in ["assign", "admit", "place patient", "patient to bed"]):
+                # Extract patient name and bed info if possible
+                import re
+
+                # Look for patterns like "assign John to bed ICU-01" or "admit Mary to ICU"
+                assign_pattern = r"assign\s+(\w+(?:\s+\w+)?)\s+to\s+bed\s+(\w+-\d+)"
+                admit_pattern = r"admit\s+(\w+(?:\s+\w+)?)\s+(?:to\s+)?(\w+)"
+
+                assign_match = re.search(assign_pattern, user_query, re.IGNORECASE)
+                admit_match = re.search(admit_pattern, user_query, re.IGNORECASE)
+
+                if assign_match:
+                    patient_name = assign_match.group(1)
+                    bed_number = assign_match.group(2)
+                    result = create_patient_and_assign.invoke({
+                        "patient_name": patient_name,
+                        "bed_number": bed_number
+                    })
+                    state["messages"].append(AIMessage(content=f"Patient assignment result: {result}"))
+                    tools_used.append("create_patient_and_assign")
+                elif admit_match:
+                    patient_name = admit_match.group(1)
+                    ward = admit_match.group(2)
+                    # Get available beds in the ward first
+                    available_beds = get_available_beds.invoke({"ward": ward})
+                    if available_beds:
+                        bed_number = available_beds[0].get('bed_number')
+                        result = create_patient_and_assign.invoke({
+                            "patient_name": patient_name,
+                            "bed_number": bed_number
+                        })
+                        state["messages"].append(AIMessage(content=f"Patient admission result: {result}"))
+                        tools_used.append("create_patient_and_assign")
+                    else:
+                        state["messages"].append(AIMessage(content=f"No available beds in {ward} ward for patient {patient_name}"))
+                        tools_used.append("get_available_beds")
+                else:
+                    state["messages"].append(AIMessage(content="Patient assignment requested - please specify patient name and bed/ward details"))
+                    tools_used.append("patient_assignment_requested")
+
             # Check for bed status update requests
-            if any(keyword in user_query for keyword in ["update", "change", "set", "mark"]):
+            elif any(keyword in user_query for keyword in ["update", "change", "set", "mark"]):
                 # This would need more sophisticated parsing in a real implementation
                 # For now, we'll just note that an update was requested
                 state["messages"].append(AIMessage(content="Bed status update requested - please provide specific bed number and new status"))

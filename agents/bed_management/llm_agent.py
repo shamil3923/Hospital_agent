@@ -1,5 +1,5 @@
 """
-LLM-Powered Bed Management Agent
+Enhanced LLM-Powered Bed Management Agent with Advanced Prompting
 """
 import os
 import sqlite3
@@ -7,29 +7,51 @@ import json
 from datetime import datetime
 from typing import Dict, Any
 
+try:
+    from .enhanced_llm_prompts import enhanced_prompt_engine
+    from .simple_agent import EnhancedBedAgent
+except ImportError:
+    from enhanced_llm_prompts import enhanced_prompt_engine
+    from simple_agent import EnhancedBedAgent
+
 class LLMBedAgent:
     def __init__(self):
         self.db_path = "hospital.db"
         self.llm = None
+        self.prompt_engine = enhanced_prompt_engine
+        self.enhanced_agent = None
         self._initialize_llm()
+        self._initialize_enhanced_agent()
     
     def _initialize_llm(self):
-        """Initialize the Gemini LLM"""
+        """Initialize the Gemini LLM with optimized settings"""
         try:
             from langchain_google_genai import ChatGoogleGenerativeAI
-            
+
             api_key = os.getenv("GOOGLE_API_KEY", "AIzaSyCrEfICW4RYyJW45Uy0ZSduXVKUKjNu25I")
-            
+
             self.llm = ChatGoogleGenerativeAI(
-                model="gemini-2.0-flash-exp",
+                model="gemini-2.5-flash",  # Real Gemini 2.5 Flash model
                 google_api_key=api_key,
-                temperature=0.1
+                temperature=0.3,  # Optimized for healthcare responses
+                max_tokens=1200,  # Increased for detailed responses
+                convert_system_message_to_human=True
             )
-            print("LLM initialized successfully")
-            
+            print("✅ Enhanced LLM initialized successfully with Gemini 2.5 Flash")
+
         except Exception as e:
-            print(f"LLM initialization failed: {e}")
+            print(f"❌ LLM initialization failed: {e}")
             self.llm = None
+
+    def _initialize_enhanced_agent(self):
+        """Initialize enhanced agent for intent detection and context"""
+        try:
+            session_id = f"llm_session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            self.enhanced_agent = EnhancedBedAgent(session_id=session_id)
+            print("✅ Enhanced agent initialized for context support")
+        except Exception as e:
+            print(f"⚠️ Enhanced agent initialization failed: {e}")
+            self.enhanced_agent = None
     
     def get_bed_data(self):
         """Get comprehensive bed data from database"""
@@ -135,33 +157,92 @@ Respond as the Hospital Bed Management Agent:
         return prompt
     
     def process_query(self, query: str) -> Dict[str, Any]:
-        """Process user query with LLM intelligence"""
-        
+        """Process user query with enhanced LLM intelligence"""
+        start_time = datetime.now()
+
         # Get current bed data
         bed_data = self.get_bed_data()
-        
-        # If LLM is not available, fall back to simple responses
+
+        # Get enhanced context if available
+        intent = None
+        entities = {}
+        context = {}
+        confidence = 0.8
+        suggestions = []
+
+        if self.enhanced_agent:
+            try:
+                enhanced_result = self.enhanced_agent.process_query(query)
+                intent = enhanced_result.get("intent")
+                entities = enhanced_result.get("entities", {})
+                context = enhanced_result.get("context", {})
+                confidence = enhanced_result.get("confidence", 0.8)
+                suggestions = enhanced_result.get("suggestions", [])
+            except Exception as e:
+                print(f"Enhanced agent context error: {e}")
+
+        # If LLM is not available, fall back to enhanced agent response
         if not self.llm:
-            return self._fallback_response(query, bed_data)
-        
+            if self.enhanced_agent:
+                result = self.enhanced_agent.process_query(query)
+                result["llm_used"] = False
+                result["agent"] = "enhanced_fallback"
+                return result
+            else:
+                return self._fallback_response(query, bed_data)
+
         try:
-            # Create context prompt
-            prompt = self.create_context_prompt(query, bed_data)
-            
-            # Get LLM response
-            response = self.llm.invoke(prompt)
-            
+            # Create enhanced context prompt
+            prompt = self.prompt_engine.create_enhanced_prompt(
+                query=query,
+                bed_data=bed_data,
+                intent=intent,
+                entities=entities,
+                context=context
+            )
+
+            # Get LLM response with retry logic
+            response = self._get_llm_response_with_retry(prompt)
+
+            execution_time = (datetime.now() - start_time).total_seconds()
+
             return {
-                "response": response.content,
+                "response": response,
                 "timestamp": datetime.now().isoformat(),
-                "agent": "llm_bed_agent",
+                "agent": "enhanced_llm_bed_agent",
                 "data_used": bed_data.get("summary", {}),
-                "llm_used": True
+                "llm_used": True,
+                "intent": intent,
+                "entities": entities,
+                "confidence": confidence,
+                "suggestions": suggestions,
+                "execution_time": execution_time,
+                "context": context
             }
-            
+
         except Exception as e:
-            print(f"LLM processing error: {e}")
-            return self._fallback_response(query, bed_data)
+            print(f"Enhanced LLM processing error: {e}")
+            # Fallback to enhanced agent if available
+            if self.enhanced_agent:
+                result = self.enhanced_agent.process_query(query)
+                result["llm_used"] = False
+                result["agent"] = "enhanced_fallback_after_llm_error"
+                return result
+            else:
+                return self._fallback_response(query, bed_data)
+
+    def _get_llm_response_with_retry(self, prompt: str, max_retries: int = 2) -> str:
+        """Get LLM response with retry logic"""
+        for attempt in range(max_retries + 1):
+            try:
+                response = self.llm.invoke(prompt)
+                return response.content
+            except Exception as e:
+                if attempt == max_retries:
+                    raise e
+                print(f"LLM attempt {attempt + 1} failed: {e}, retrying...")
+
+        return "I apologize, but I'm experiencing technical difficulties. Please try again."
     
     def _fallback_response(self, query: str, bed_data: Dict) -> Dict[str, Any]:
         """Fallback response when LLM is not available"""

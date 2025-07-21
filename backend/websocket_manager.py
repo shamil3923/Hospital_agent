@@ -64,7 +64,12 @@ class WebSocketManager:
     async def send_to_bed_status(self, message: dict):
         """Send message to all bed status clients"""
         if self.bed_status_connections:
+            logger.info(f"📡 Broadcasting bed status update to {len(self.bed_status_connections)} clients")
             await self._broadcast_to_connections(self.bed_status_connections, message)
+
+    async def broadcast_to_bed_status(self, message: dict):
+        """Alias for send_to_bed_status for compatibility"""
+        await self.send_to_bed_status(message)
     
     async def broadcast_to_all(self, message: dict):
         """Broadcast message to all connected clients"""
