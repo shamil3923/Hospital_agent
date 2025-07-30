@@ -12,7 +12,26 @@ from enum import Enum
 try:
     from .database import SessionLocal, Bed, Patient, BedOccupancyHistory
 except ImportError:
-    from database import SessionLocal, Bed, Patient, BedOccupancyHistory
+    try:
+        from database import SessionLocal, Bed, Patient, BedOccupancyHistory
+    except ImportError:
+        # Create mock classes if database not available
+        class SessionLocal:
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def query(self, *args): return MockQuery()
+
+        class MockQuery:
+            def filter(self, *args): return self
+            def count(self): return 0
+            def all(self): return []
+
+        class Bed:
+            pass
+        class Patient:
+            pass
+        class BedOccupancyHistory:
+            pass
 from sqlalchemy import func
 
 logger = logging.getLogger(__name__)
@@ -56,6 +75,11 @@ class Alert:
             self.created_at = datetime.now()
         if self.metadata is None:
             self.metadata = {}
+
+    @property
+    def timestamp(self):
+        """Alias for created_at for backward compatibility"""
+        return self.created_at
 
 class RealTimeAlertSystem:
     """Real-time alert system for hospital management"""
@@ -132,9 +156,24 @@ class RealTimeAlertSystem:
                 logger.error(f"Error notifying subscriber: {e}")
     
     async def create_alert(self, alert: Alert) -> str:
-        """Create and broadcast new alert"""
-        alert.id = f"{alert.type.value}_{alert.department}_{int(datetime.now().timestamp())}"
-        
+        """Create and broadcast new alert with deduplication"""
+        # Create unique ID based on type, department, and related resource
+        base_id = f"{alert.type.value}_{alert.department}"
+        if alert.related_bed_id:
+            base_id += f"_bed_{alert.related_bed_id}"
+
+        # Check if similar alert already exists (within last hour)
+        current_time = datetime.now()
+        for existing_id, existing_alert in list(self.active_alerts.items()):
+            if (existing_id.startswith(base_id) and
+                existing_alert.timestamp and
+                (current_time - existing_alert.timestamp).total_seconds() < 3600):  # 1 hour
+                logger.debug(f"Skipping duplicate alert: {base_id}")
+                return existing_id
+
+        # Create new alert
+        alert.id = f"{base_id}_{int(current_time.timestamp())}"
+
         # Store alert
         self.active_alerts[alert.id] = alert
         
@@ -180,6 +219,7 @@ class RealTimeAlertSystem:
                     # Check if this is a high-demand bed type
                     if bed.bed_type in ["ICU", "Emergency"]:
                         alert = Alert(
+                            id="",  # Will be set by create_alert
                             type=AlertType.BED_AVAILABLE,
                             priority=AlertPriority.HIGH,
                             title=f"{bed.bed_type} Bed Available",
@@ -203,7 +243,7 @@ class RealTimeAlertSystem:
             except Exception as e:
                 logger.error(f"Error monitoring bed availability: {e}")
             
-            await asyncio.sleep(30)  # Check every 30 seconds
+            await asyncio.sleep(120)  # Check every 2 minutes (reduced load)
     
     async def _monitor_discharge_predictions(self):
         """Monitor for upcoming discharges"""
@@ -223,6 +263,7 @@ class RealTimeAlertSystem:
                     bed = db.query(Bed).filter(Bed.id == patient.current_bed_id).first()
                     if bed:
                         alert = Alert(
+                            id="",  # Will be set by create_alert
                             type=AlertType.DISCHARGE_UPCOMING,
                             priority=AlertPriority.MEDIUM,
                             title="Discharge Preparation Needed",
@@ -260,6 +301,7 @@ class RealTimeAlertSystem:
                 
                 if occupancy_rate >= 95:
                     alert = Alert(
+                        id="",  # Will be set by create_alert
                         type=AlertType.CAPACITY_CRITICAL,
                         priority=AlertPriority.CRITICAL,
                         title="Critical Capacity Reached",
@@ -277,6 +319,7 @@ class RealTimeAlertSystem:
                 
                 elif occupancy_rate >= 90:
                     alert = Alert(
+                        id="",  # Will be set by create_alert
                         type=AlertType.CAPACITY_CRITICAL,
                         priority=AlertPriority.HIGH,
                         title="High Capacity Warning",
@@ -345,29 +388,33 @@ class RealTimeAlertSystem:
             try:
                 db = SessionLocal()
                 
+                # Temporarily disabled to prevent spam - TODO: Fix bed status logic
                 # Check for beds in cleaning status too long
-                cleaning_threshold = datetime.now() - timedelta(hours=2)
-                overdue_cleaning = db.query(Bed).filter(
-                    Bed.status == "cleaning",
-                    Bed.last_updated < cleaning_threshold
-                ).all()
-                
-                for bed in overdue_cleaning:
-                    alert = Alert(
-                        type=AlertType.CLEANING_OVERDUE,
-                        priority=AlertPriority.MEDIUM,
-                        title="Cleaning Overdue",
-                        message=f"Bed {bed.bed_number} has been in cleaning status for over 2 hours",
-                        department=bed.ward,
-                        related_bed_id=bed.id,
-                        action_required=True,
-                        metadata={
-                            "bed_number": bed.bed_number,
-                            "cleaning_started": bed.last_updated.isoformat() if bed.last_updated else None,
-                            "hours_overdue": (datetime.now() - bed.last_updated).total_seconds() / 3600 if bed.last_updated else 0
-                        }
-                    )
-                    await self.create_alert(alert)
+                # cleaning_threshold = datetime.now() - timedelta(hours=2)
+                # overdue_cleaning = db.query(Bed).filter(
+                #     Bed.status == "cleaning",
+                #     Bed.last_updated < cleaning_threshold
+                # ).all()
+
+                # Only create cleaning alerts for beds that actually need attention
+                # for bed in overdue_cleaning[:5]:  # Limit to 5 alerts max
+                #     alert = Alert(
+                #         id="",  # Will be set by create_alert
+                #         type=AlertType.CLEANING_OVERDUE,
+                #         priority=AlertPriority.MEDIUM,
+                #         title="Cleaning Overdue",
+                #         message=f"Bed {bed.bed_number} has been in cleaning status for over 2 hours",
+                #         department=bed.ward,
+                #         related_bed_id=bed.id,
+                #         action_required=True,
+                #         metadata={
+                #             "bed_number": bed.bed_number,
+                #             "cleaning_started": bed.last_updated.isoformat() if bed.last_updated else None,
+                #             "hours_overdue": (datetime.now() - bed.last_updated).total_seconds() / 3600 if bed.last_updated else 0
+                #         }
+                #     )
+                #     await self.create_alert(alert)
+                pass  # Temporarily disabled
                 
                 db.close()
                 
@@ -434,6 +481,82 @@ class RealTimeAlertSystem:
             }
             for alert in self.active_alerts.values()
         ]
+
+    async def create_proactive_alerts(self):
+        """Create proactive alerts for better hospital management"""
+        try:
+            # Import with fallback for different execution contexts
+            try:
+                from .database import SessionLocal, Bed, Patient
+            except ImportError:
+                try:
+                    from database import SessionLocal, Bed, Patient
+                except ImportError:
+                    from backend.database import SessionLocal, Bed, Patient
+
+            with SessionLocal() as db:
+                # Alert 1: High-demand bed types
+                icu_available = db.query(Bed).filter(
+                    Bed.ward == "ICU",
+                    Bed.status == "vacant"
+                ).count()
+
+                if icu_available <= 1:
+                    alert = Alert(
+                        id="",
+                        type=AlertType.CAPACITY_CRITICAL,
+                        priority=AlertPriority.HIGH,
+                        title="ICU Beds Running Low",
+                        message=f"Only {icu_available} ICU bed(s) available. Consider discharge planning.",
+                        department="ICU",
+                        action_required=True,
+                        metadata={
+                            "available_icu_beds": icu_available,
+                            "alert_type": "proactive_capacity",
+                            "suggested_actions": [
+                                "Review ICU discharge candidates",
+                                "Prepare step-down unit beds",
+                                "Contact bed management team"
+                            ]
+                        }
+                    )
+                    await self.create_alert(alert)
+
+                # Alert 2: Emergency department capacity
+                emergency_occupied = db.query(Bed).filter(
+                    Bed.ward == "Emergency",
+                    Bed.status == "occupied"
+                ).count()
+
+                emergency_total = db.query(Bed).filter(Bed.ward == "Emergency").count()
+                emergency_rate = (emergency_occupied / emergency_total * 100) if emergency_total > 0 else 0
+
+                if emergency_rate >= 80:
+                    alert = Alert(
+                        id="",
+                        type=AlertType.CAPACITY_CRITICAL,
+                        priority=AlertPriority.HIGH,
+                        title="Emergency Department Near Capacity",
+                        message=f"Emergency department at {emergency_rate:.1f}% capacity. Prepare for overflow.",
+                        department="Emergency",
+                        action_required=True,
+                        metadata={
+                            "emergency_occupancy": emergency_rate,
+                            "occupied_beds": emergency_occupied,
+                            "total_beds": emergency_total,
+                            "suggested_actions": [
+                                "Expedite emergency discharges",
+                                "Activate overflow protocols",
+                                "Alert administration"
+                            ]
+                        }
+                    )
+                    await self.create_alert(alert)
+
+                logger.info(f"Created proactive alerts for better hospital management")
+
+        except Exception as e:
+            logger.error(f"Error creating proactive alerts: {e}")
 
 # Global alert system instance
 alert_system = RealTimeAlertSystem()

@@ -1,20 +1,19 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { Send, Bot, User, Loader, MessageCircle, Lightbulb, UserPlus, BedDouble } from 'lucide-react';
 import axios from 'axios';
 import PatientAssignmentModal from './PatientAssignmentModal';
+import { useChat } from '../contexts/ChatContext';
 
 const ChatInterface = () => {
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      type: 'agent',
-      content: "🏥 **Welcome to the Enhanced Hospital Operations Assistant!**\n\nI can help you with:\n\n🛏️ **Bed Management:**\n• Check ICU bed availability\n• View emergency department status\n• Get overall hospital occupancy\n\n👨‍⚕️ **Patient Operations:**\n• Assign patients to beds with automated workflows\n• Find available doctors by specialty\n• Coordinate medical team assignments\n\n📊 **Smart Queries:**\n• \"Show me ICU beds\" - Get ICU-specific information\n• \"Assign patient to ICU\" - Start automated assignment workflow\n• \"Hospital bed status\" - Overall capacity overview\n\nTry asking me something specific!",
-      timestamp: new Date(),
-      enhanced: true
-    }
-  ]);
-  const [inputMessage, setInputMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const {
+    messages,
+    setMessages,
+    inputMessage,
+    setInputMessage,
+    isLoading,
+    setIsLoading,
+    addMessage
+  } = useChat();
   const messagesEndRef = useRef(null);
   const [assignmentModal, setAssignmentModal] = useState({
     isOpen: false,
@@ -51,10 +50,58 @@ const ChatInterface = () => {
       'assign patient', 'assign a patient', 'patient assignment',
       'admit patient', 'admit a patient', 'new patient',
       'find bed', 'available bed', 'bed for patient',
-      'place patient', 'allocate bed'
+      'place patient', 'allocate bed', 'need bed for',
+      'icu bed', 'emergency bed', 'general bed'
     ];
 
     return assignmentKeywords.some(keyword =>
+      message.toLowerCase().includes(keyword.toLowerCase())
+    );
+  };
+
+  const extractWardFromMessage = (message) => {
+    const wardKeywords = {
+      'ICU': ['icu', 'intensive care', 'critical care'],
+      'Emergency': ['emergency', 'er', 'trauma', 'urgent'],
+      'General': ['general', 'medical', 'internal medicine'],
+      'Cardiology': ['cardiology', 'cardiac', 'heart'],
+      'Pediatrics': ['pediatric', 'children', 'kids', 'peds'],
+      'Maternity': ['maternity', 'obstetrics', 'labor', 'delivery'],
+      'Surgery': ['surgery', 'surgical', 'operating', 'post-op'],
+      'Orthopedics': ['orthopedic', 'ortho', 'bone', 'joint'],
+      'Neurology': ['neurology', 'neuro', 'brain', 'neurological'],
+      'Oncology': ['oncology', 'cancer', 'chemotherapy'],
+      'Psychiatry': ['psychiatry', 'mental health', 'psychiatric'],
+      'Rehabilitation': ['rehabilitation', 'rehab', 'recovery']
+    };
+
+    const lowerMessage = message.toLowerCase();
+    for (const [ward, keywords] of Object.entries(wardKeywords)) {
+      if (keywords.some(keyword => lowerMessage.includes(keyword))) {
+        return ward;
+      }
+    }
+    return null;
+  };
+
+  const detectEmergencyContext = (message) => {
+    const emergencyKeywords = [
+      'emergency', 'critical', 'urgent', 'trauma', 'code red',
+      'immediate', 'crisis', 'severe', 'life threatening', 'stat'
+    ];
+
+    return emergencyKeywords.some(keyword =>
+      message.toLowerCase().includes(keyword.toLowerCase())
+    );
+  };
+
+  const detectPredictiveQuery = (message) => {
+    const predictiveKeywords = [
+      'predict', 'forecast', 'trend', 'next', 'future', 'expect',
+      'bottleneck', 'capacity', 'surge', 'analytics', 'pattern'
+    ];
+
+    return predictiveKeywords.some(keyword =>
       message.toLowerCase().includes(keyword.toLowerCase())
     );
   };
@@ -77,7 +124,7 @@ const ChatInterface = () => {
       isAssignment: true
     };
 
-    setMessages(prev => [...prev, successMessage]);
+    addMessage(successMessage);
 
     // Close modal
     setAssignmentModal({
@@ -99,12 +146,18 @@ const ChatInterface = () => {
   };
 
   const suggestedQuestions = [
-    "Show me ICU beds",
-    "Show me all patients",
-    "Show me all doctors",
-    "ICU doctors",
-    "Assign patient to ICU",
-    "Hospital bed status"
+    "🚨 Show critical alerts and required actions",
+    "🏥 ICU capacity status with discharge predictions",
+    "⚡ Emergency bed availability for trauma patient",
+    "📊 Analyze current bottlenecks and solutions",
+    "📈 Predict bed availability for next 4 hours",
+    "🎯 Optimize patient flow for maximum efficiency",
+    "👨‍⚕️ Find optimal bed for cardiac patient",
+    "🔄 Show pending discharges and bed turnover",
+    "📋 Assign patient with automated doctor matching",
+    "🛠️ Equipment status and maintenance alerts",
+    "👥 Staff workload analysis and optimization",
+    "📍 Ward-specific capacity and utilization"
   ];
 
   const handleSendMessage = async () => {
@@ -117,43 +170,74 @@ const ChatInterface = () => {
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    addMessage(userMessage);
     const currentMessage = inputMessage;
     setInputMessage('');
     setIsLoading(true);
 
-    // Check if this is a patient assignment request
-    if (detectPatientAssignmentIntent(currentMessage)) {
+    // Check for different types of queries and add context
+    const isEmergency = detectEmergencyContext(currentMessage);
+    const isPredictive = detectPredictiveQuery(currentMessage);
+    const isAssignment = detectPatientAssignmentIntent(currentMessage);
+
+    // Handle patient assignment requests with ward filtering
+    if (isAssignment) {
+      const wardContext = extractWardFromMessage(currentMessage);
+      let filteredBeds = availableBeds;
+
+      // Filter beds by ward if ward context is detected
+      if (wardContext) {
+        filteredBeds = availableBeds.filter(bed =>
+          bed.ward && bed.ward.toLowerCase() === wardContext.toLowerCase()
+        );
+      }
+
       setIsLoading(false);
 
-      // Show available beds and assignment options
+      const wardText = wardContext ? ` in ${wardContext} ward` : '';
       const assignmentResponse = {
         id: Date.now() + 1,
         type: 'agent',
-        content: `I can help you assign a patient to an available bed. We currently have ${availableBeds.length} available beds.`,
+        content: `🏥 **Patient Assignment${wardText}**\n\nI found ${filteredBeds.length} available beds${wardText}.\n\n${isEmergency ? '🚨 **EMERGENCY MODE** - Prioritizing immediate availability.' : 'Select a bed below to proceed with patient assignment.'}`,
         timestamp: new Date(),
         isAssignmentResponse: true,
-        availableBeds: availableBeds.slice(0, 3) // Show first 3 beds
+        availableBeds: filteredBeds.slice(0, 5), // Show up to 5 ward-specific beds
+        wardContext: wardContext,
+        isEmergency: isEmergency
       };
 
-      setMessages(prev => [...prev, assignmentResponse]);
+      addMessage(assignmentResponse);
       return;
     }
 
     try {
-      const response = await axios.post('http://localhost:8000/api/chat', {
-        message: currentMessage
+      const startTime = Date.now();
+      const wardContext = extractWardFromMessage(currentMessage);
+
+      // Use MCP agent for enhanced capabilities
+      const response = await axios.post('http://localhost:8000/api/chat/mcp', {
+        message: currentMessage,
+        context: {
+          isEmergency: isEmergency,
+          isPredictive: isPredictive,
+          wardContext: wardContext,
+          timestamp: new Date().toISOString()
+        }
       });
+      const endTime = Date.now();
+      const responseTime = ((endTime - startTime) / 1000).toFixed(1);
 
       const agentMessage = {
         id: Date.now() + 1,
         type: 'agent',
         content: response.data.response,
         timestamp: new Date(response.data.timestamp),
-        agent: response.data.agent
+        agent: response.data.agent,
+        responseTime: responseTime,
+        enhanced: true // Mark as enhanced AI response
       };
 
-      setMessages(prev => [...prev, agentMessage]);
+      addMessage(agentMessage);
     } catch (error) {
       console.error('Error sending message:', error);
       const errorMessage = {
@@ -163,7 +247,7 @@ const ChatInterface = () => {
         timestamp: new Date(),
         error: true
       };
-      setMessages(prev => [...prev, errorMessage]);
+      addMessage(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -181,52 +265,54 @@ const ChatInterface = () => {
   };
 
   return (
-    <div className="flex flex-col h-full max-h-[calc(100vh-200px)]">
-      {/* Header */}
-      <div className="bg-white rounded-t-lg shadow-sm border border-gray-200 p-4 border-b">
+    <div className="h-screen flex flex-col bg-white overflow-hidden">
+      {/* Header - Enhanced */}
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 shadow-lg border-b border-gray-200 p-4 flex-shrink-0">
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-primary-100 rounded-full">
-            <MessageCircle className="h-6 w-6 text-primary-600" />
+          <div className="p-2 bg-white/20 rounded-full backdrop-blur-sm">
+            <MessageCircle className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">Chat Interface</h2>
-            <p className="text-sm text-gray-600">
-              Interact with the Bed Management Agent using natural language
+            <h2 className="text-xl font-bold text-white">ARIA - Advanced Resource Intelligence</h2>
+            <p className="text-sm text-blue-100">
+              🧠 LLM + RAG + MCP • 🚨 Emergency Response • 📊 Predictive Analytics
             </p>
           </div>
-          <div className="ml-auto flex items-center space-x-2">
-            <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
-            <span className="text-sm text-gray-600">Agent Online</span>
+          <div className="ml-auto flex items-center space-x-3">
+            <div className="flex items-center space-x-2 bg-white/20 rounded-full px-3 py-1 backdrop-blur-sm">
+              <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-sm text-white font-medium">Enhanced AI Online</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Messages Area */}
-      <div className="flex-1 bg-gray-50 p-4 overflow-y-auto">
-        <div className="space-y-4">
+      {/* Messages Area - Flex 1 to take remaining space */}
+      <div className="flex-1 bg-gray-50 overflow-y-auto">
+        <div className="p-4 space-y-4">
           {messages.map((message) => (
             <div
               key={message.id}
               className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <div className={`flex items-start space-x-3 max-w-3xl ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                {/* Avatar */}
-                <div className={`flex-shrink-0 p-2 rounded-full ${
-                  message.type === 'user' 
-                    ? 'bg-primary-500' 
-                    : message.error 
-                      ? 'bg-red-100' 
+              <div className={`flex items-start space-x-2 max-w-4xl ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                {/* Avatar - Smaller */}
+                <div className={`flex-shrink-0 p-1.5 rounded-full ${
+                  message.type === 'user'
+                    ? 'bg-primary-500'
+                    : message.error
+                      ? 'bg-red-100'
                       : 'bg-gray-200'
                 }`}>
                   {message.type === 'user' ? (
-                    <User className="h-4 w-4 text-white" />
+                    <User className="h-3.5 w-3.5 text-white" />
                   ) : (
-                    <Bot className={`h-4 w-4 ${message.error ? 'text-red-600' : 'text-gray-600'}`} />
+                    <Bot className={`h-3.5 w-3.5 ${message.error ? 'text-red-600' : 'text-gray-600'}`} />
                   )}
                 </div>
 
-                {/* Message Content */}
-                <div className={`p-4 rounded-lg ${
+                {/* Message Content - Optimized */}
+                <div className={`p-3 rounded-lg ${
                   message.type === 'user'
                     ? 'bg-primary-500 text-white'
                     : message.error
@@ -235,7 +321,29 @@ const ChatInterface = () => {
                         ? 'bg-green-50 border border-green-200 text-green-800'
                         : 'bg-white border border-gray-200 text-gray-800'
                 }`}>
-                  {/* Enhanced message content rendering */}
+                  {/* Agent Badge for AI responses */}
+                  {message.type === 'agent' && message.agent && (
+                    <div className="mb-2 flex items-center space-x-2">
+                      <div className="flex items-center space-x-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs">
+                        <div className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-pulse"></div>
+                        <span className="text-blue-700 font-medium">
+                          {message.agent === 'mcp_bed_management_agent' ? '🧠 Enhanced AI (LLM+RAG+MCP)' :
+                           message.agent === 'aria_quick_response' ? '⚡ Quick Response' :
+                           message.agent === 'aria_icu_intelligence' ? '🏥 ICU Intelligence' :
+                           message.agent === 'aria_emergency_protocol' ? '🚨 Emergency Protocol' :
+                           message.agent === 'aria_department_analyzer' ? '📊 Department Analyzer' :
+                           `🤖 ${message.agent}`}
+                        </span>
+                      </div>
+                      {message.responseTime && (
+                        <span className="text-xs text-gray-500">
+                          ⏱️ {message.responseTime}s
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Enhanced message content rendering - Optimized */}
                   <div className="text-sm leading-relaxed">
                     {message.enhanced ? (
                       <div
@@ -248,36 +356,69 @@ const ChatInterface = () => {
                         }}
                       />
                     ) : (
-                      <div className="whitespace-pre-wrap">{message.content}</div>
+                      <div className="whitespace-pre-wrap break-words">{message.content}</div>
                     )}
                   </div>
 
-                  {/* Quick action buttons for enhanced responses */}
-                  {message.type === 'agent' && message.content.includes('ICU') && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        onClick={() => setInputMessage('assign patient to ICU')}
-                        className="px-3 py-1 text-xs rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
-                      >
-                        🏥 Assign Patient to ICU
-                      </button>
-                      <button
-                        onClick={() => setInputMessage('show available ICU doctors')}
-                        className="px-3 py-1 text-xs rounded-full bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
-                      >
-                        👨‍⚕️ Find ICU Doctors
-                      </button>
+                  {/* Context-aware quick action buttons */}
+                  {message.type === 'agent' && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {/* ICU-specific actions */}
+                      {message.content.includes('ICU') && (
+                        <>
+                          <button
+                            onClick={() => setInputMessage('🚨 Show critical ICU alerts and capacity')}
+                            className="px-2.5 py-1 text-xs rounded-full bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors"
+                          >
+                            🚨 Critical ICU Status
+                          </button>
+                          <button
+                            onClick={() => setInputMessage('📈 Predict ICU availability next 4 hours')}
+                            className="px-2.5 py-1 text-xs rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
+                          >
+                            📈 ICU Predictions
+                          </button>
+                        </>
+                      )}
+
+                      {/* Emergency-specific actions */}
+                      {(message.content.includes('emergency') || message.content.includes('critical')) && (
+                        <>
+                          <button
+                            onClick={() => setInputMessage('⚡ Emergency surge capacity assessment')}
+                            className="px-2.5 py-1 text-xs rounded-full bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors"
+                          >
+                            ⚡ Surge Capacity
+                          </button>
+                          <button
+                            onClick={() => setInputMessage('🚨 Activate emergency response protocol')}
+                            className="px-2.5 py-1 text-xs rounded-full bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors"
+                          >
+                            🚨 Emergency Protocol
+                          </button>
+                        </>
+                      )}
+
+                      {/* General predictive actions */}
+                      {!message.content.includes('prediction') && !message.content.includes('forecast') && (
+                        <button
+                          onClick={() => setInputMessage('📊 Analyze bottlenecks and predict capacity issues')}
+                          className="px-2.5 py-1 text-xs rounded-full bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors"
+                        >
+                          📊 Predictive Analysis
+                        </button>
+                      )}
                     </div>
                   )}
 
-                  {/* Emergency department actions */}
+                  {/* Emergency department actions - Compact */}
                   {message.type === 'agent' && message.content.includes('Emergency') && (
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-1.5">
                       <button
                         onClick={() => setInputMessage('assign emergency patient')}
-                        className="px-3 py-1 text-xs rounded-full bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors"
+                        className="px-2.5 py-1 text-xs rounded-full bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors"
                       >
-                        🚑 Emergency Assignment
+                        🚑 Emergency
                       </button>
                     </div>
                   )}
@@ -370,12 +511,12 @@ const ChatInterface = () => {
                     </div>
                   )}
 
-                  <p className={`text-xs mt-2 ${
+                  <p className={`text-xs mt-1.5 ${
                     message.type === 'user'
                       ? 'text-primary-100'
                       : 'text-gray-500'
                   }`}>
-                    {message.timestamp.toLocaleTimeString()}
+                    {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     {message.agent && ` • ${message.agent}`}
                   </p>
                 </div>
@@ -383,81 +524,95 @@ const ChatInterface = () => {
             </div>
           ))}
 
-          {/* Loading indicator */}
+          {/* Loading indicator - Compact */}
           {isLoading && (
             <div className="flex justify-start">
-              <div className="flex items-start space-x-3 max-w-3xl">
-                <div className="flex-shrink-0 p-2 bg-gray-200 rounded-full">
-                  <Bot className="h-4 w-4 text-gray-600" />
+              <div className="flex items-start space-x-2 max-w-4xl">
+                <div className="flex-shrink-0 p-1.5 bg-gray-200 rounded-full">
+                  <Bot className="h-3.5 w-3.5 text-gray-600" />
                 </div>
-                <div className="bg-white border border-gray-200 p-4 rounded-lg">
+                <div className="bg-white border border-gray-200 p-3 rounded-lg">
                   <div className="flex items-center space-x-2">
-                    <Loader className="h-4 w-4 animate-spin text-gray-600" />
+                    <Loader className="h-3.5 w-3.5 animate-spin text-gray-600" />
                     <span className="text-sm text-gray-600">Agent is thinking...</span>
                   </div>
                 </div>
               </div>
             </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
-        <div ref={messagesEndRef} />
       </div>
 
-      {/* Suggested Questions */}
-      {messages.length === 1 && (
-        <div className="bg-white border-t border-gray-200 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center space-x-2">
-              <Lightbulb className="h-4 w-4 text-yellow-500" />
-              <span className="text-sm font-medium text-gray-700">Suggested questions:</span>
+      {/* Input Section */}
+      <div className="bg-white border-t border-gray-200 flex-shrink-0">
+        {/* Suggested Questions - Only show when first message */}
+        {messages.length === 1 && (
+          <div className="border-b border-gray-200 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center space-x-2">
+                <Lightbulb className="h-3.5 w-3.5 text-yellow-500" />
+                <span className="text-xs font-medium text-gray-700">Suggested questions:</span>
+              </div>
+              <button
+                onClick={() => handlePatientAssignment()}
+                className="px-2 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-1"
+              >
+                <UserPlus className="h-3 w-3" />
+                <span>Quick Assign</span>
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {suggestedQuestions.slice(0, 4).map((question, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleSuggestedQuestion(question)}
+                  className="text-left p-2 text-xs bg-gray-50 hover:bg-gray-100 rounded-md border border-gray-200 transition-colors"
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Input Area - Fixed at Bottom */}
+        <div className="bg-white border-t border-gray-200 p-4 flex-shrink-0 shadow-lg">
+          <div className="flex items-end space-x-3">
+            <div className="flex-1">
+              <textarea
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyDown={handleKeyPress}
+                placeholder="🧠 Ask ARIA about critical bed status, patient flow optimization, emergency capacity, predictive analytics, or any medical query..."
+                className="w-full p-4 border-2 border-gray-300 rounded-xl resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition-all duration-200 shadow-sm"
+                rows="2"
+                disabled={isLoading}
+                style={{ maxHeight: '120px' }}
+              />
             </div>
             <button
-              onClick={() => handlePatientAssignment()}
-              className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-1"
+              onClick={handleSendMessage}
+              disabled={!inputMessage.trim() || isLoading}
+              className="p-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg transform hover:scale-105"
             >
-              <UserPlus className="h-3 w-3" />
-              <span>Quick Assign</span>
+              {isLoading ? (
+                <Loader className="h-5 w-5 animate-spin" />
+              ) : (
+                <Send className="h-5 w-5" />
+              )}
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {suggestedQuestions.slice(0, 4).map((question, index) => (
-              <button
-                key={index}
-                onClick={() => handleSuggestedQuestion(question)}
-                className="text-left p-3 text-sm bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
-              >
-                {question}
-              </button>
-            ))}
+          <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+            <span className="flex items-center space-x-2">
+              <span>🚀 Enhanced AI with LLM + RAG + MCP</span>
+              <span>•</span>
+              <span>Press Enter to send, Shift+Enter for new line</span>
+            </span>
+            <span className={`${inputMessage.length > 800 ? 'text-orange-500' : ''}`}>
+              {inputMessage.length}/1000
+            </span>
           </div>
-        </div>
-      )}
-
-      {/* Input Area */}
-      <div className="bg-white rounded-b-lg border border-gray-200 border-t-0 p-4">
-        <div className="flex items-end space-x-3">
-          <div className="flex-1">
-            <textarea
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Ask about bed occupancy, patient flow, or resource management..."
-              className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              rows="3"
-              disabled={isLoading}
-            />
-          </div>
-          <button
-            onClick={handleSendMessage}
-            disabled={!inputMessage.trim() || isLoading}
-            className="p-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <Send className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-          <span>Press Enter to send, Shift+Enter for new line</span>
-          <span>{inputMessage.length}/1000</span>
         </div>
       </div>
 

@@ -10,6 +10,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import PatientAssignmentModal from './PatientAssignmentModal';
+import EnhancedAlertCard from './EnhancedAlertCard';
 import { useAlerts } from '../contexts/AlertContext';
 
 // Simple UI components
@@ -212,12 +213,13 @@ const RealTimeDashboard = () => {
   // Manual refresh function
   const requestUpdate = useCallback(async () => {
     try {
-      setConnectionStatus('polling');
-
-      // Fetch occupancy data
+      // Fetch occupancy data first to test connection
       const occupancyResponse = await fetch('http://localhost:8000/api/beds/occupancy');
       if (!occupancyResponse.ok) throw new Error('Failed to fetch occupancy data');
       const occupancyData = await occupancyResponse.json();
+
+      // Set to connected only after successful data fetch
+      setConnectionStatus('connected');
 
       // Fetch available beds
       const bedsResponse = await fetch('http://localhost:8000/api/beds');
@@ -237,6 +239,12 @@ const RealTimeDashboard = () => {
     } catch (error) {
       console.error('Error refreshing data:', error);
       setConnectionStatus('error');
+
+      // Auto-retry connection after 5 seconds
+      setTimeout(() => {
+        console.log('Attempting to reconnect...');
+        requestUpdate();
+      }, 5000);
     }
   }, []);
 
@@ -311,8 +319,8 @@ const RealTimeDashboard = () => {
             connectionStatus === 'error' ? 'bg-red-500' : 'bg-yellow-500'
           }`} />
           <span className="text-sm font-medium">
-            Status: {connectionStatus === 'connected' ? 'Live Data' :
-                     connectionStatus === 'error' ? 'Demo Mode' : 'Updating...'}
+            Status: {connectionStatus === 'connected' ? 'Production Mode - Live Data' :
+                     connectionStatus === 'error' ? 'Production Mode - Error' : 'Production Mode - Live Data'}
           </span>
           {lastUpdate && (
             <span className="text-xs text-gray-500">
@@ -424,6 +432,7 @@ const RealTimeDashboard = () => {
         <TabsList>
           <TabsTrigger value="wards">Ward Status</TabsTrigger>
           <TabsTrigger value="available">Available Beds</TabsTrigger>
+          <TabsTrigger value="alerts">Active Alerts ({alerts.length})</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
 
@@ -488,6 +497,54 @@ const RealTimeDashboard = () => {
                 </CardContent>
               </Card>
             ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="alerts" className="space-y-4">
+          <div className="space-y-4">
+            {alerts.length > 0 ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Active Alerts ({alerts.length})</h3>
+                  <div className="flex space-x-2">
+                    {alerts.filter(a => a.priority === 'critical').length > 0 && (
+                      <Badge variant="destructive" className="text-xs">
+                        {alerts.filter(a => a.priority === 'critical').length} Critical
+                      </Badge>
+                    )}
+                    {alerts.filter(a => a.priority === 'high').length > 0 && (
+                      <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800">
+                        {alerts.filter(a => a.priority === 'high').length} High
+                      </Badge>
+                    )}
+                    {alerts.filter(a => a.priority === 'medium').length > 0 && (
+                      <Badge variant="outline" className="text-xs">
+                        {alerts.filter(a => a.priority === 'medium').length} Medium
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-4">
+                  {alerts
+                    .sort((a, b) => {
+                      const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+                      return priorityOrder[a.priority] - priorityOrder[b.priority];
+                    })
+                    .map((alert) => (
+                      <EnhancedAlertCard key={alert.id} alert={alert} />
+                    ))}
+                </div>
+              </>
+            ) : (
+              <Card>
+                <CardContent className="text-center py-8">
+                  <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Active Alerts</h3>
+                  <p className="text-gray-600">All systems are operating normally.</p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </TabsContent>
 

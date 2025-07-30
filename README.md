@@ -30,8 +30,16 @@ A comprehensive hospital bed management system with AI-powered agents, real-time
 
 ### Backend Setup
 ```bash
-cd backend
+# Create and activate virtual environment
+python -m venv hospital_env
+hospital_env\Scripts\activate  # Windows
+# source hospital_env/bin/activate  # Linux/Mac
+
+# Install dependencies
 pip install -r requirements.txt
+
+# Start the backend server
+cd backend
 python main.py
 ```
 
@@ -43,25 +51,30 @@ npm run dev
 ```
 
 ### Access the Application
-- **Frontend Dashboard**: http://localhost:3001
-- **Backend API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
+- **Frontend Dashboard**: http://localhost:5173 (Vite dev server)
+- **Backend API**: http://localhost:8001
+- **API Documentation**: http://localhost:8001/docs
 
 ## 📁 Project Structure
 
 ```
-hospital_agent/
-├── 🔧 backend/              # FastAPI backend application
-├── 🖥️ frontend/             # React frontend application  
-├── 🤖 agents/               # AI agent implementations (MCP + LangGraph)
-├── 🏥 hospital_mcp/         # MCP server and tools
-├── 📊 data/                 # Database and data files
-├── 🔧 scripts/              # Utility and management scripts
-├── 🧪 tests/                # All testing files
-└── 📚 docs/                 # Documentation and guides
-    ├── 📖 guides/           # User guides and tutorials
-    ├── 🔧 technical/        # Technical documentation
-    └── 📋 api/              # API documentation
+Hospital_Agent/
+├── 📁 agents/                          # AI agent implementations (LangGraph + MCP)
+├── 📁 backend/                         # FastAPI backend application
+├── 📁 data/                            # Application data and vector store
+├── 📁 docs/                            # Documentation and guides
+├── 📁 frontend/                        # React frontend application
+├── 📁 hospital_env/                    # Python virtual environment (ignored by git)
+├── 📁 hospital_mcp/                    # MCP server and tools
+├── 📁 scripts/                         # Utility and setup scripts
+├── 📄 .gitignore                       # Git ignore rules
+├── 📄 DEMO_INSTRUCTIONS.md             # Demo instructions
+├── 📄 LICENSE                          # MIT License
+├── 📄 PROMPT_ANALYSIS_AND_IMPROVEMENTS.md  # Prompt analysis
+├── 📄 README.md                        # Project documentation
+├── 📄 requirements.txt                 # Python dependencies
+├── 📄 setup.bat                        # Setup script (Windows)
+└── 📄 start_hospital_system.bat        # System startup script (Windows)
 ```
 
 ## 🎯 Key Components
@@ -125,17 +138,19 @@ hospital_agent/
 
 ## 🧪 Testing
 
-All test files are organized in the `tests/` folder:
+To test the application:
 
 ```bash
-# Run all tests
-cd tests
-python test_all_functionality.py
+# Activate virtual environment
+hospital_env\Scripts\activate  # Windows
+# source hospital_env/bin/activate  # Linux/Mac
 
-# Test specific components
-python test_mcp_tools.py           # Test MCP tools
-python test_patient_assignment.py  # Test patient assignment
-python test_backend_health.py      # Test backend health
+# Test backend functionality
+cd backend
+python -m pytest
+
+# Test individual components
+python -c "import main; print('Backend imports successfully')"
 ```
 
 ## 📚 Documentation
@@ -154,26 +169,6 @@ Comprehensive documentation is available in the `docs/` folder:
 - ✅ **Doctor Integration**: Full database integration with specializations
 - ✅ **Predictive Analytics**: AI-powered discharge predictions
 - ✅ **File Organization**: Proper project structure with tests and docs
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Add tests for new functionality
-5. Run tests: `cd tests && python test_all_functionality.py`
-6. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🆘 Support
-
-For support and questions:
-- 📧 Open an issue in the GitHub repository
-- 📚 Check the documentation in `docs/guides/`
-- 🧪 Run tests in `tests/` folder to verify functionality
 
 ---
 

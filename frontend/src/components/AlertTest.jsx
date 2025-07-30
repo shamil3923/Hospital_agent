@@ -40,8 +40,7 @@ const AlertTest = () => {
 
   useEffect(() => {
     fetchAlerts();
-    const interval = setInterval(fetchAlerts, 10000); // Every 10 seconds
-    return () => clearInterval(interval);
+    // Removed automatic polling - use manual refresh button instead
   }, []);
 
   return (

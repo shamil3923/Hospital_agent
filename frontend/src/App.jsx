@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import RealTimeDashboard from './components/RealTimeDashboard';
 import ChatInterface from './components/ChatInterface';
+import StaffCoordination from './components/StaffCoordination';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import AlertTest from './components/AlertTest';
 import { AlertProvider, useAlerts } from './contexts/AlertContext';
+import { ChatProvider } from './contexts/ChatContext';
 
 // Main App component that uses alerts
 const AppContent = () => {
@@ -31,29 +33,41 @@ const AppContent = () => {
         />
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50">
-          <div className="container mx-auto px-6 py-8">
-            {activeView === 'dashboard' && <RealTimeDashboard />}
-            {activeView === 'chat' && <ChatInterface />}
-            {activeView === 'alert-test' && <AlertTest />}
-            {activeView === 'settings' && (
-              <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Settings</h2>
-                <p className="text-gray-600">Settings panel coming soon...</p>
-              </div>
-            )}
-          </div>
+        <main className="flex-1 overflow-hidden bg-gray-50">
+          {/* Chat Interface - Full Screen */}
+          {activeView === 'chat' && (
+            <div className="h-full w-full relative">
+              <ChatInterface />
+            </div>
+          )}
+
+          {/* Other Views - With Container */}
+          {activeView !== 'chat' && (
+            <div className="container mx-auto px-6 py-8 h-full overflow-y-auto">
+              {activeView === 'dashboard' && <RealTimeDashboard />}
+              {activeView === 'staff-coordination' && <StaffCoordination />}
+              {activeView === 'alert-test' && <AlertTest />}
+              {activeView === 'settings' && (
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-4">Settings</h2>
+                  <p className="text-gray-600">Settings panel coming soon...</p>
+                </div>
+              )}
+            </div>
+          )}
         </main>
       </div>
     </div>
   );
 };
 
-// Main App component with AlertProvider
+// Main App component with AlertProvider and ChatProvider
 function App() {
   return (
     <AlertProvider>
-      <AppContent />
+      <ChatProvider>
+        <AppContent />
+      </ChatProvider>
     </AlertProvider>
   );
 }

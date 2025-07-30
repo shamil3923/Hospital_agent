@@ -14,42 +14,53 @@ class EnhancedPromptEngine:
     
     def _create_system_prompt(self) -> str:
         """Create comprehensive system prompt"""
-        return """You are an advanced AI Hospital Bed Management Agent with expertise in:
+        return """You are ARIA (Advanced Resource Intelligence Assistant), an expert AI Hospital Operations Agent specializing in:
 
-🏥 CORE COMPETENCIES:
-- Real-time bed occupancy monitoring and optimization
-- Patient flow management and discharge planning
-- Resource allocation and capacity planning
-- Emergency response and critical care coordination
-- Staff workflow optimization
-- Predictive analytics for bed availability
+🏥 **CORE EXPERTISE:**
+- Real-time bed management & capacity optimization
+- Patient flow coordination & discharge planning
+- Emergency response & critical care allocation
+- Resource utilization & staff workflow optimization
+- Predictive analytics & operational insights
+- Multi-departmental coordination (ICU, ER, General Wards)
 
-🎯 COMMUNICATION STYLE:
-- Professional yet approachable healthcare communication
-- Clear, actionable information with specific data points
-- Proactive suggestions and recommendations
-- Empathetic understanding of healthcare urgency
-- Structured responses with bullet points and clear sections
+🧠 **INTELLIGENCE CAPABILITIES:**
+- Context-aware decision making with hospital-wide data
+- Proactive risk identification & mitigation strategies
+- Pattern recognition for operational bottlenecks
+- Automated workflow suggestions with rationale
+- Real-time alert prioritization & escalation
+- Predictive modeling for capacity planning
 
-📊 DATA INTERPRETATION:
-- Always provide context for numbers (trends, comparisons, implications)
-- Highlight critical situations requiring immediate attention
-- Suggest optimization opportunities
-- Explain the "why" behind recommendations
+🎯 **COMMUNICATION EXCELLENCE:**
+- Healthcare-professional focused language
+- Urgency-appropriate tone (Critical/Routine/Planning)
+- Data-driven insights with actionable recommendations
+- Clear structure: Status → Analysis → Actions → Next Steps
+- Empathetic understanding of patient care priorities
+- Proactive suggestions based on patterns and trends
 
-🚨 PRIORITY HANDLING:
-- Critical/Emergency situations: Immediate, urgent tone with clear action items
-- Routine inquiries: Helpful, informative, with optimization suggestions
-- Planning queries: Strategic, forward-thinking with data-driven insights
+🚨 **RESPONSE PROTOCOLS:**
+- CRITICAL: Immediate action items, escalation paths, resource mobilization
+- ROUTINE: Comprehensive analysis, optimization suggestions, trend insights
+- PLANNING: Strategic recommendations, capacity forecasting, resource allocation
+- EMERGENCY: Rapid response protocols, surge capacity activation, priority triage
 
-🔍 RESPONSE STRUCTURE:
-1. Direct answer to the query
-2. Current status summary with key metrics
-3. Relevant insights or trends
-4. Actionable recommendations
-5. Next steps or follow-up suggestions
+📊 **PREDICTIVE ANALYTICS:**
+- Always include forecasting when relevant (next 2-4-8 hours)
+- Identify potential bottlenecks before they occur
+- Suggest preventive measures based on historical patterns
+- Provide confidence levels for predictions
+- Highlight seasonal/temporal trends affecting capacity
 
-Remember: You're supporting healthcare professionals making critical decisions. Be accurate, timely, and helpful."""
+🔍 **ENHANCED RESPONSE STRUCTURE:**
+1. Immediate status with urgency assessment
+2. Predictive insights and trend analysis
+3. Context-aware recommendations with rationale
+4. Actionable next steps with timeline
+5. Proactive alerts and follow-up suggestions
+
+Remember: You're supporting life-critical decisions. Prioritize accuracy, speed, and actionable intelligence. Always think one step ahead."""
 
     def _create_response_templates(self) -> Dict[str, str]:
         """Create response templates for different query types"""
@@ -70,6 +81,73 @@ Remember: You're supporting healthcare professionals making critical decisions. 
 {recommendations}
 """,
             
+            'emergency_response': """
+⚡ **EMERGENCY RESPONSE PROTOCOL**
+
+**Immediate Bed Availability:**
+• Emergency Beds: {emergency_available} ready now
+• ICU Beds: {icu_emergency} available for critical cases
+• Trauma Bays: {trauma_available} operational
+
+**Resource Status:**
+• Medical Staff: {staff_available} on duty
+• Equipment: {equipment_status}
+• Critical Supplies: {supply_status}
+
+**🚨 IMMEDIATE ACTIONS:**
+{emergency_actions}
+
+**Escalation Path:**
+{escalation_protocol}
+
+**Predicted Impact:**
+{surge_prediction}
+""",
+
+            'predictive_analysis': """
+📈 **Predictive Analytics Report**
+
+**Current Trends:**
+• Occupancy Trajectory: {occupancy_trend}
+• Discharge Predictions: {discharge_forecast}
+• Admission Forecast: {admission_forecast}
+
+**Next 4 Hours:**
+• Expected Available Beds: {beds_4h}
+• Critical Capacity Risk: {risk_4h}
+• Recommended Actions: {actions_4h}
+
+**Next 8 Hours:**
+• Projected Occupancy: {occupancy_8h}
+• Bottleneck Predictions: {bottlenecks_8h}
+• Resource Requirements: {resources_8h}
+
+**💡 Proactive Recommendations:**
+{proactive_suggestions}
+""",
+
+            'critical_alerts': """
+🚨 **CRITICAL ALERTS DASHBOARD**
+
+**High Priority Alerts:**
+{high_priority_alerts}
+
+**Medium Priority Alerts:**
+{medium_priority_alerts}
+
+**Trending Issues:**
+{trending_issues}
+
+**Immediate Actions Required:**
+{required_actions}
+
+**Escalation Needed:**
+{escalation_items}
+
+**System Recommendations:**
+{system_recommendations}
+""",
+
             'patient_info': """
 👥 **Patient Information**
 

@@ -217,3 +217,27 @@ local_settings.py
 .env.local
 .env.production
 secrets.json
+
+# Project-specific files
+*.stackdump
+start_demo.bat
+
+# ChromaDB vector store data
+data/chroma_db/
+backend/data/chroma_db/
+
+# Hospital-specific database files
+hospital.db
+backend/hospital.db
+
+# Test files (temporary)
+test_*.py
+
+# Working/backup files
+*_working.py
+*_simple.py
+*_backup.py
+*_old.py
+
+# MCP server logs
+hospital_mcp/*.log

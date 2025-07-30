@@ -60,6 +60,7 @@ class ChatRequest(BaseModel):
     message: str
     user_id: Optional[str] = None
     session_id: Optional[str] = None
+    context: Optional[dict] = None
 
 
 class ChatResponse(BaseModel):

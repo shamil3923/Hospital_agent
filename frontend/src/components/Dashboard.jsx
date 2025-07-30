@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, ReferenceDot } from 'recharts';
 import axios from 'axios';
+import { useAlerts } from '../contexts/AlertContext';
 import RealTimeBedMonitor from './RealTimeBedMonitor';
 import BedManagement from './BedManagement';
 import AutonomousSystemDashboard from './AutonomousSystemDashboard';
@@ -28,7 +29,10 @@ const Dashboard = () => {
   const [predictedCurve, setPredictedCurve] = useState([]);
   const [riskHours, setRiskHours] = useState([]);
   const [autonomousStatus, setAutonomousStatus] = useState(null);
-  const [alerts, setAlerts] = useState([]);
+  const [wsConnected, setWsConnected] = useState(false);
+
+  // Use AlertContext instead of local state
+  const { alerts, alertCount, criticalAlertsCount } = useAlerts();
 
   // Mock time series data for charts
   const occupancyTrend = [
@@ -44,7 +48,7 @@ const Dashboard = () => {
   const fetchMetrics = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('http://localhost:8000/api/dashboard/metrics');
+      const response = await axios.get('http://localhost:8001/api/dashboard/metrics');
       setMetrics(response.data);
       setLastUpdate(new Date());
     } catch (error) {
@@ -89,45 +93,77 @@ const Dashboard = () => {
     }
   };
 
-  const fetchAlerts = async () => {
-    try {
-      console.log('🚨 Dashboard: Fetching alerts from API...');
+  // Removed fetchAlerts - now using AlertContext
 
-      const response = await axios.get('http://localhost:8000/api/alerts/active', {
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        },
-        timeout: 10000
-      });
+  // WebSocket connection for real-time alerts
+  useEffect(() => {
+    let ws = null;
 
-      console.log('🚨 Dashboard: Alert API Response:', response.data);
-      console.log('🚨 Dashboard: Alerts array:', response.data.alerts);
-      console.log('🚨 Dashboard: Alerts length:', response.data.alerts?.length || 0);
+    const connectWebSocket = () => {
+      try {
+        ws = new WebSocket('ws://localhost:8001/ws/alerts');
 
-      const alertsArray = response.data.alerts || [];
-      console.log('🚨 Dashboard: Setting alerts:', alertsArray);
-      setAlerts(alertsArray);
+        ws.onopen = () => {
+          console.log('🔗 WebSocket connected for real-time alerts');
+          setWsConnected(true);
+        };
 
-    } catch (error) {
-      console.error('❌ Dashboard: Error fetching alerts:', error);
-      setAlerts([]);
-    }
-  };
+        ws.onmessage = (event) => {
+          try {
+            const alertData = JSON.parse(event.data);
+            console.log('📨 Received real-time alert:', alertData);
+
+            if (alertData.type === 'new_alert') {
+              setAlerts(prev => [alertData.alert, ...prev]);
+            } else if (alertData.type === 'alert_resolved') {
+              setAlerts(prev => prev.filter(alert => alert.id !== alertData.alert_id));
+            }
+          } catch (e) {
+            console.error('Error parsing WebSocket message:', e);
+          }
+        };
+
+        ws.onclose = () => {
+          console.log('🔌 WebSocket disconnected');
+          setWsConnected(false);
+          // Reconnect after 5 seconds
+          setTimeout(connectWebSocket, 5000);
+        };
+
+        ws.onerror = (error) => {
+          console.error('❌ WebSocket error:', error);
+          setWsConnected(false);
+        };
+
+      } catch (error) {
+        console.error('❌ Failed to connect WebSocket:', error);
+        setWsConnected(false);
+      }
+    };
+
+    // Initial connection
+    connectWebSocket();
+
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     fetchMetrics();
     fetchPredictedOccupancy();
     fetchAutonomousStatus();
-    fetchAlerts();
+    // Alerts now handled by AlertContext
     const interval = setInterval(() => {
       fetchMetrics();
       fetchPredictedOccupancy();
       fetchAutonomousStatus();
-      fetchAlerts();
+      // Alerts automatically updated by AlertContext
     }, 30000); // Update every 30 seconds
     return () => clearInterval(interval);
-  }, []);
+  }, [wsConnected]);
 
   if (loading && !metrics) {
     return (
@@ -182,7 +218,7 @@ const Dashboard = () => {
             fetchMetrics();
             fetchPredictedOccupancy();
             fetchAutonomousStatus();
-            fetchAlerts();
+            // Alerts refreshed via AlertContext
           }}
           className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
         >
@@ -553,8 +589,8 @@ const Dashboard = () => {
                   <span>Last updated: {lastUpdate.toLocaleTimeString()}</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <div className="h-2 w-2 bg-green-400 rounded-full"></div>
-                  <span>System operational</span>
+                  <div className={`h-2 w-2 rounded-full ${wsConnected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></div>
+                  <span>{wsConnected ? 'Real-time connected' : 'Polling mode'}</span>
                 </div>
               </div>
               <div className="text-right">
